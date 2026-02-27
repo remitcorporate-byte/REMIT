@@ -1,0 +1,131 @@
+# ENVIRONMENT VARIABLES TEMPLATE
+# Copy this to .env and fill in your actual values
+
+# ======================
+# APPLICATION
+# ======================
+NODE_ENV=development
+PORT=5000
+FRONTEND_URL=http://localhost:3000
+
+# ======================
+# DATABASE
+# ======================
+# MongoDB Atlas Connection String
+# Format: mongodb+srv://username:password@cluster.mongodb.net/database-name
+MONGODB_URI=mongodb+srv://your_username:your_password@cluster0.xxxxx.mongodb.net/payroll-db?retryWrites=true&w=majority
+
+# ======================
+# REDIS (Queue & Cache)
+# ======================
+# Get free Redis from: https://redis.com/try-free/
+REDIS_HOST=redis-12345.cloud.redislabs.com
+REDIS_PORT=12345
+REDIS_PASSWORD=your_redis_password
+
+# ======================
+# JWT AUTHENTICATION
+# ======================
+# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+JWT_SECRET=your_super_secret_jwt_key_minimum_32_characters_long
+JWT_EXPIRE=30d
+
+# ======================
+# GOOGLE OAUTH
+# ======================
+# Get from: https://console.cloud.google.com/apis/credentials
+GOOGLE_CLIENT_ID=123456789012-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-abcdefghijklmnopqrstuvwxyz
+GOOGLE_CALLBACK_URL=http://localhost:5000/api/v1/auth/google/callback
+
+# ======================
+# PAYSTACK
+# ======================
+# Get from: https://dashboard.paystack.com/#/settings/developer
+# Use test keys for development, live keys for production
+PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# ======================
+# EMAIL (SendGrid)
+# ======================
+# Get from: https://app.sendgrid.com/settings/api_keys
+SENDGRID_API_KEY=SG.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+EMAIL_FROM=noreply@yourapp.com
+
+# Alternative: Use Gmail SMTP (for development)
+# EMAIL_SERVICE=gmail
+# EMAIL_USER=your_gmail@gmail.com
+# EMAIL_PASSWORD=your_gmail_app_password
+
+# ======================
+# SMS (Twilio)
+# ======================
+# Get from: https://console.twilio.com/
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_PHONE_NUMBER=+1234567890
+
+# Alternative: Use Africa's Talking (for African countries)
+# AFRICASTALKING_USERNAME=your_username
+# AFRICASTALKING_API_KEY=your_api_key
+
+# ======================
+# FILE STORAGE (Optional)
+# ======================
+# For company logos, reports
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=123456789012345
+CLOUDINARY_API_SECRET=abcdefghijklmnopqrstuvwxyz
+
+# ======================
+# ERROR TRACKING (Optional)
+# ======================
+# Get from: https://sentry.io/
+SENTRY_DSN=https://xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx@o123456.ingest.sentry.io/1234567
+
+# ======================
+# ENCRYPTION (Optional)
+# ======================
+# For encrypting sensitive data like bank account numbers
+# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+ENCRYPTION_KEY=64_character_hex_string_here
+
+# ======================
+# RATE LIMITING
+# ======================
+RATE_LIMIT_WINDOW_MS=900000  # 15 minutes in milliseconds
+RATE_LIMIT_MAX_REQUESTS=100
+
+# ======================
+# SESSION (if using sessions)
+# ======================
+SESSION_SECRET=another_super_secret_key_for_sessions
+
+# ======================
+# BULL QUEUE DASHBOARD
+# ======================
+# Set to false in production
+BULL_BOARD_ENABLED=true
+
+# ======================
+# PAYSTACK WEBHOOK
+# ======================
+# This is auto-set by Paystack, just keep it here for reference
+# PAYSTACK_WEBHOOK_URL=https://your-backend.onrender.com/api/v1/webhooks/paystack
+
+# ======================
+# PRODUCTION ONLY
+# ======================
+# Set these in Render dashboard, not in .env file
+# DATABASE_CA_CERT=<path to certificate>
+# SSL_MODE=true
+
+# ======================
+# NOTES
+# ======================
+# 1. NEVER commit .env to Git
+# 2. Use test keys in development
+# 3. Use live keys in production only
+# 4. Generate strong secrets (min 32 chars)
+# 5. Keep this file secure

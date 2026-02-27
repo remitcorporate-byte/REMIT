@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
+
+enum PaymentFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum PayrollStatus {
+  SCHEDULED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  PAYROLL_DEBIT
+  REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REVERSED
+}
+
+enum NotificationType {
+  PAYROLL_SCHEDULED
+  PAYROLL_COMPLETED
+  PAYROLL_FAILED
+  DEPOSIT_SUCCESS
+  LOW_BALANCE
+  EMPLOYEE_ADDED
+  GENERAL
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+}
+
+model User {
+  id           String       @id @default(uuid())
+  email        String       @unique
+  password     String?
+  firstName    String
+  lastName     String
+  role         Role         @default(ADMIN)
+  authProvider AuthProvider @default(LOCAL)
+  googleId     String?      @unique
+  companyId    String?
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  company       Company?       @relation(fields: [companyId], references: [id])
+  ownedCompany  Company?       @relation("CompanyOwner")
+  notifications Notification[]
+
+  @@index([email])
+  @@index([companyId])
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  phone     String?
+  address   String?
+  ownerId   String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner         User           @relation("CompanyOwner", fields: [ownerId], references: [id])
+  users         User[]
+  wallet        Wallet?
+  employees     Employee[]
+  payrolls      Payroll[]
+  transactions  Transaction[]
+  notifications Notification[]
+
+  @@index([ownerId])
+}
+
+model Wallet {
+  id        String   @id @default(uuid())
+  companyId String   @unique
+  balance   Int      @default(0) // stored in kobo (1 NGN = 100 kobo)
+  currency  String   @default("NGN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  transactions Transaction[]
+}
+
+model Employee {
+  id                    String           @id @default(uuid())
+  companyId             String
+  firstName             String
+  lastName              String
+  email                 String
+  phone                 String?
+  bankName              String
+  bankCode              String
+  accountNumber         String
+  accountName           String
+  salary                Int              // in kobo
+  department            String?
+  position              String?
+  paymentFrequency      PaymentFrequency @default(MONTHLY)
+  nextPaymentDate       DateTime?
+  paystackRecipientCode String?
+  isActive              Boolean          @default(true)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  company          Company           @relation(fields: [companyId], references: [id])
+  payrollEmployees PayrollEmployee[]
+  transactions     Transaction[]
+
+  @@unique([companyId, email])
+  @@index([companyId])
+}
+
+model Payroll {
+  id            String        @id @default(uuid())
+  companyId     String
+  scheduledDate DateTime
+  processedDate DateTime?
+  status        PayrollStatus @default(SCHEDULED)
+  totalAmount   Int           @default(0) // in kobo
+  employeeCount Int           @default(0)
+  note          String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  company          Company           @relation(fields: [companyId], references: [id])
+  payrollEmployees PayrollEmployee[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([scheduledDate])
+}
+
+model PayrollEmployee {
+  id         String            @id @default(uuid())
+  payrollId  String
+  employeeId String
+  amount     Int               // in kobo
+  status     TransactionStatus @default(PENDING)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  payroll  Payroll  @relation(fields: [payrollId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([payrollId, employeeId])
+  @@index([payrollId])
+  @@index([employeeId])
+}
+
+model Transaction {
+  id                 String            @id @default(uuid())
+  companyId          String
+  walletId           String
+  employeeId         String?
+  type               TransactionType
+  amount             Int               // in kobo
+  status             TransactionStatus @default(PENDING)
+  description        String?
+  paystackReference  String?           @unique
+  paystackTransferId String?           @unique
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id])
+  wallet   Wallet    @relation(fields: [walletId], references: [id])
+  employee Employee? @relation(fields: [employeeId], references: [id])
+
+  @@index([companyId])
+  @@index([walletId])
+  @@index([status])
+  @@index([type])
+}
+
+model Notification {
+  id        String              @id @default(uuid())
+  companyId String
+  userId    String
+  type      NotificationType    @default(GENERAL)
+  channel   NotificationChannel @default(IN_APP)
+  title     String
+  message   String
+  isRead    Boolean             @default(false)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([isRead])
+}
