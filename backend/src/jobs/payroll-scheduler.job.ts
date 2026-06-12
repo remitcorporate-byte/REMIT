@@ -1,46 +1,43 @@
-import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import { payrollQueue } from '../queues/payroll.queue';
-import { startOfDay, endOfDay } from '../utils/dateHelpers';
 
 const prisma = new PrismaClient();
+let schedulerStarted = false;
 
-// Run every day at midnight
-export function startPayrollScheduler() {
-  cron.schedule('0 0 * * *', async () => {
-    console.log('[PayrollScheduler] Running daily payroll check...');
-
-    try {
-      const today = new Date();
-
-      // Find all scheduled payrolls due today or overdue
-      const duePayrolls = await prisma.payroll.findMany({
-        where: {
-          status: 'SCHEDULED',
-          scheduledDate: {
-            gte: startOfDay(today),
-            lte: endOfDay(today),
-          },
-        },
-      });
-
-      console.log(
-        `[PayrollScheduler] Found ${duePayrolls.length} payrolls to process`
-      );
-
-      for (const payroll of duePayrolls) {
-        await payrollQueue.add('process-payroll', {
-          payrollId: payroll.id,
-          companyId: payroll.companyId,
-        });
-        console.log(
-          `[PayrollScheduler] Queued payroll ${payroll.id} for processing`
-        );
-      }
-    } catch (error) {
-      console.error('[PayrollScheduler] Error:', error);
-    }
+export async function processDuePayrolls() {
+  const duePayrolls = await prisma.payroll.findMany({
+    where: {
+      status: 'SCHEDULED',
+      scheduledDate: { lte: new Date() },
+    },
+    select: { id: true, companyId: true },
   });
 
-  console.log('[PayrollScheduler] Daily payroll scheduler started (runs at midnight)');
+  for (const payroll of duePayrolls) {
+    await payrollQueue.add(
+      'process-payroll',
+      { payrollId: payroll.id, companyId: payroll.companyId },
+      { jobId: payroll.id }
+    );
+  }
+
+  return duePayrolls.length;
+}
+
+export function startPayrollScheduler() {
+  if (schedulerStarted) return;
+  schedulerStarted = true;
+
+  const intervalMs = Number(process.env.PAYROLL_SCHEDULER_INTERVAL_MS || 60000);
+
+  setInterval(() => {
+    processDuePayrolls()
+      .then((count) => {
+        if (count > 0) console.log(`[PayrollScheduler] Queued ${count} due payrolls`);
+      })
+      .catch((error) => console.error('[PayrollScheduler] Error:', error));
+  }, intervalMs);
+
+  processDuePayrolls().catch((error) => console.error('[PayrollScheduler] Startup error:', error));
+  console.log(`[PayrollScheduler] In-process scheduler started (${intervalMs}ms interval)`);
 }

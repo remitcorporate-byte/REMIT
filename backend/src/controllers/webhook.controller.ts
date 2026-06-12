@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import config from '../config';
 import { notificationService } from '../services/notification.service';
+import { getNextPaymentDate } from '../utils/dateHelpers';
+import { auditService } from '../services/audit.service';
 
 const prisma = new PrismaClient();
 
@@ -56,7 +58,7 @@ async function handleChargeSuccess(data: any) {
 
   if (!transaction || transaction.status === 'SUCCESS') return;
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.transaction.update({
       where: { id: transaction.id },
       data: { status: 'SUCCESS' },
@@ -76,6 +78,14 @@ async function handleChargeSuccess(data: any) {
     title: 'Deposit Successful',
     message: `Your deposit of ${transaction.amount / 100} NGN has been confirmed.`,
   });
+
+  await auditService.record({
+    companyId: transaction.companyId,
+    action: 'DEPOSIT_WEBHOOK_SUCCESS',
+    entityType: 'Transaction',
+    entityId: transaction.id,
+    metadata: { reference },
+  });
 }
 
 async function handleTransferSuccess(data: any) {
@@ -83,29 +93,59 @@ async function handleTransferSuccess(data: any) {
 
   const transaction = await prisma.transaction.findUnique({
     where: { paystackReference: reference },
-    include: { employee: true },
-  });
-
-  if (!transaction || transaction.status === 'SUCCESS') return;
-
-  await prisma.transaction.update({
-    where: { id: transaction.id },
-    data: {
-      status: 'SUCCESS',
-      paystackTransferId: data.transfer_code,
+    include: {
+      employee: true,
+      payrollEmployee: {
+        include: {
+          payroll: true,
+          employee: true,
+        },
+      },
     },
   });
 
-  // Update PayrollEmployee status if linked
-  if (transaction.employeeId) {
-    await prisma.payrollEmployee.updateMany({
-      where: {
-        employeeId: transaction.employeeId,
-        status: 'PENDING',
+  if (!transaction || transaction.status !== 'PENDING') return;
+
+  await prisma.$transaction(async (tx: any) => {
+    await tx.transaction.update({
+      where: { id: transaction.id },
+      data: {
+        status: 'SUCCESS',
+        paystackTransferId: data.transfer_code,
       },
-      data: { status: 'SUCCESS' },
     });
+
+    if (transaction.payrollEmployeeId) {
+      await tx.payrollEmployee.update({
+        where: { id: transaction.payrollEmployeeId },
+        data: { status: 'SUCCESS' },
+      });
+    }
+
+    if (transaction.payrollEmployee?.employee) {
+      await tx.employee.update({
+        where: { id: transaction.payrollEmployee.employee.id },
+        data: {
+          nextPaymentDate: getNextPaymentDate(
+            new Date(),
+            transaction.payrollEmployee.employee.paymentFrequency
+          ),
+        },
+      });
+    }
+  });
+
+  if (transaction.payrollEmployee?.payrollId) {
+    await recomputePayrollStatus(transaction.payrollEmployee.payrollId);
   }
+
+  await auditService.record({
+    companyId: transaction.companyId,
+    action: 'TRANSFER_WEBHOOK_SUCCESS',
+    entityType: 'Transaction',
+    entityId: transaction.id,
+    metadata: { reference, payrollEmployeeId: transaction.payrollEmployeeId },
+  });
 }
 
 async function handleTransferFailed(data: any) {
@@ -113,11 +153,12 @@ async function handleTransferFailed(data: any) {
 
   const transaction = await prisma.transaction.findUnique({
     where: { paystackReference: reference },
+    include: { payrollEmployee: true },
   });
 
-  if (!transaction) return;
+  if (!transaction || transaction.status !== 'PENDING') return;
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.transaction.update({
       where: { id: transaction.id },
       data: { status: 'FAILED' },
@@ -143,16 +184,17 @@ async function handleTransferFailed(data: any) {
         },
       });
     }
+
+    if (transaction.payrollEmployeeId) {
+      await tx.payrollEmployee.update({
+        where: { id: transaction.payrollEmployeeId },
+        data: { status: 'FAILED' },
+      });
+    }
   });
 
-  if (transaction.employeeId) {
-    await prisma.payrollEmployee.updateMany({
-      where: {
-        employeeId: transaction.employeeId,
-        status: 'PENDING',
-      },
-      data: { status: 'FAILED' },
-    });
+  if (transaction.payrollEmployee?.payrollId) {
+    await recomputePayrollStatus(transaction.payrollEmployee.payrollId);
   }
 
   await notificationService.notifyCompanyAdmins({
@@ -161,6 +203,14 @@ async function handleTransferFailed(data: any) {
     title: 'Transfer Failed',
     message: `A transfer of ${transaction.amount / 100} NGN has failed. The amount has been refunded to your wallet.`,
   });
+
+  await auditService.record({
+    companyId: transaction.companyId,
+    action: 'TRANSFER_WEBHOOK_FAILED',
+    entityType: 'Transaction',
+    entityId: transaction.id,
+    metadata: { reference, payrollEmployeeId: transaction.payrollEmployeeId },
+  });
 }
 
 async function handleTransferReversed(data: any) {
@@ -168,11 +218,12 @@ async function handleTransferReversed(data: any) {
 
   const transaction = await prisma.transaction.findUnique({
     where: { paystackReference: reference },
+    include: { payrollEmployee: true },
   });
 
-  if (!transaction) return;
+  if (!transaction || transaction.status !== 'PENDING') return;
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.transaction.update({
       where: { id: transaction.id },
       data: { status: 'REVERSED' },
@@ -195,12 +246,53 @@ async function handleTransferReversed(data: any) {
         description: `Refund for reversed transfer: ${reference}`,
       },
     });
+
+    if (transaction.payrollEmployeeId) {
+      await tx.payrollEmployee.update({
+        where: { id: transaction.payrollEmployeeId },
+        data: { status: 'REVERSED' },
+      });
+    }
   });
+
+  if (transaction.payrollEmployee?.payrollId) {
+    await recomputePayrollStatus(transaction.payrollEmployee.payrollId);
+  }
 
   await notificationService.notifyCompanyAdmins({
     companyId: transaction.companyId,
     type: 'PAYROLL_FAILED',
     title: 'Transfer Reversed',
     message: `A transfer of ${transaction.amount / 100} NGN has been reversed. The amount has been refunded to your wallet.`,
+  });
+
+  await auditService.record({
+    companyId: transaction.companyId,
+    action: 'TRANSFER_WEBHOOK_REVERSED',
+    entityType: 'Transaction',
+    entityId: transaction.id,
+    metadata: { reference, payrollEmployeeId: transaction.payrollEmployeeId },
+  });
+}
+
+async function recomputePayrollStatus(payrollId: string) {
+  const [pendingCount, failedCount, totalCount] = await Promise.all([
+    prisma.payrollEmployee.count({ where: { payrollId, status: 'PENDING' } }),
+    prisma.payrollEmployee.count({
+      where: { payrollId, status: { in: ['FAILED', 'REVERSED'] } },
+    }),
+    prisma.payrollEmployee.count({ where: { payrollId } }),
+  ]);
+
+  if (totalCount === 0) return;
+
+  const status = pendingCount > 0 ? 'PROCESSING' : failedCount > 0 ? 'FAILED' : 'COMPLETED';
+
+  await prisma.payroll.update({
+    where: { id: payrollId },
+    data: {
+      status,
+      ...(status !== 'PROCESSING' && { processedDate: new Date() }),
+    },
   });
 }

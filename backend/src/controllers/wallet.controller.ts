@@ -3,6 +3,8 @@ import { PrismaClient } from '@prisma/client';
 import { AppError } from '../middleware/errorHandler';
 import { paystackService } from '../services/paystack.service';
 import { generateReference, getPaginationParams, paginatedResponse } from '../utils/formatters';
+import config from '../config';
+import { auditService } from '../services/audit.service';
 
 const prisma = new PrismaClient();
 
@@ -24,7 +26,10 @@ export const getWallet = async (req: Request, res: Response, next: NextFunction)
 
     res.json({
       success: true,
-      data: wallet,
+      data: {
+        ...wallet,
+        availableBalance: wallet.balance - wallet.reservedBalance,
+      },
     });
   } catch (error) {
     next(error);
@@ -67,11 +72,23 @@ export const initializeDeposit = async (req: Request, res: Response, next: NextF
       },
     });
 
+    await auditService.record({
+      companyId: req.user.companyId,
+      userId: req.user.id,
+      action: 'DEPOSIT_INITIALIZED',
+      entityType: 'Transaction',
+      entityId: reference,
+      metadata: { amount },
+    });
+
     // Initialize Paystack transaction
     const response = await paystackService.initializeTransaction({
       email: req.user.email,
       amount,
       reference,
+      callbackUrl: config.frontendUrl
+        ? `${config.frontendUrl}/?view=wallet&depositReference=${reference}`
+        : undefined,
       metadata: {
         companyId: req.user.companyId,
         walletId: wallet.id,
@@ -123,22 +140,12 @@ export const verifyDeposit = async (req: Request, res: Response, next: NextFunct
       });
     }
 
-    // Simulation bypass for automated testing
-    const simulateSuccess = req.headers['x-simulate-success'] === 'true';
-    let verificationStatus = 'failed';
-
-    if (simulateSuccess) {
-      console.log(`[Simulation] Bypassing Paystack verification for reference: ${reference}`);
-      verificationStatus = 'success';
-    } else {
-      // Verify with Paystack
-      const verification = await paystackService.verifyTransaction(reference);
-      verificationStatus = verification.data.status;
-    }
+    const verification = await paystackService.verifyTransaction(reference);
+    const verificationStatus = verification.data.status;
 
     if (verificationStatus === 'success') {
       // Update transaction and wallet in a transaction
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: any) => {
         const updatedTransaction = await tx.transaction.update({
           where: { id: transaction.id },
           data: { status: 'SUCCESS' },
@@ -150,6 +157,15 @@ export const verifyDeposit = async (req: Request, res: Response, next: NextFunct
         });
 
         return { transaction: updatedTransaction, wallet: updatedWallet };
+      });
+
+      await auditService.record({
+        companyId: req.user!.companyId!,
+        userId: req.user!.id,
+        action: 'DEPOSIT_VERIFIED',
+        entityType: 'Transaction',
+        entityId: result.transaction.id,
+        metadata: { reference, amount: transaction.amount },
       });
 
       res.json({

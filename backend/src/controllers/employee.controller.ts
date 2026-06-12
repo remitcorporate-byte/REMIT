@@ -5,6 +5,7 @@ import { AppError } from '../middleware/errorHandler';
 import { paystackService } from '../services/paystack.service';
 import { getPaginationParams, paginatedResponse } from '../utils/formatters';
 import { getNextPaymentDate } from '../utils/dateHelpers';
+import { auditService } from '../services/audit.service';
 
 const prisma = new PrismaClient();
 
@@ -37,6 +38,38 @@ const updateEmployeeSchema = z.object({
   department: z.string().optional(),
   position: z.string().optional(),
 });
+
+const verifyBankSchema = z.object({
+  bankCode: z.string().min(1, 'Bank code is required'),
+  accountNumber: z.string().min(10, 'Account number must be at least 10 digits'),
+});
+
+// @desc    List Paystack banks
+// @route   GET /api/v1/employees/banks
+export const listBanks = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const banks = await paystackService.listBanks();
+    res.json({ success: true, data: banks.data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify bank account
+// @route   POST /api/v1/employees/verify-bank
+export const verifyBank = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const body = verifyBankSchema.parse(req.body);
+    const verification = await paystackService.verifyBankAccount(body.accountNumber, body.bankCode);
+    res.json({ success: true, data: verification.data });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const messages = error.errors.map((e) => e.message).join(', ');
+      return next(new AppError(messages, 400));
+    }
+    next(error);
+  }
+};
 
 // @desc    Create employee
 // @route   POST /api/v1/employees
@@ -109,6 +142,15 @@ export const createEmployee = async (req: Request, res: Response, next: NextFunc
         nextPaymentDate: nextPayment,
         paystackRecipientCode,
       },
+    });
+
+    await auditService.record({
+      companyId: req.user.companyId,
+      userId: req.user.id,
+      action: 'EMPLOYEE_CREATED',
+      entityType: 'Employee',
+      entityId: employee.id,
+      metadata: { email: employee.email, salary: employee.salary },
     });
 
     res.status(201).json({
@@ -264,6 +306,15 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
       },
     });
 
+    await auditService.record({
+      companyId: req.user.companyId,
+      userId: req.user.id,
+      action: 'EMPLOYEE_UPDATED',
+      entityType: 'Employee',
+      entityId: employee.id,
+      metadata: { email: employee.email },
+    });
+
     res.json({
       success: true,
       data: employee,
@@ -295,6 +346,15 @@ export const deleteEmployee = async (req: Request, res: Response, next: NextFunc
     await prisma.employee.update({
       where: { id: req.params.id as string },
       data: { isActive: false },
+    });
+
+    await auditService.record({
+      companyId: req.user.companyId,
+      userId: req.user.id,
+      action: 'EMPLOYEE_DEACTIVATED',
+      entityType: 'Employee',
+      entityId: employee.id,
+      metadata: { email: employee.email },
     });
 
     res.json({

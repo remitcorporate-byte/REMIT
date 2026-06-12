@@ -9,8 +9,7 @@ This guide will help you set up the Automated Payroll System from scratch.
 Before you start, make sure you have:
 
 - [x] Node.js 20.x or higher installed
-- [x] MongoDB account (free tier at https://mongodb.com/atlas)
-- [x] Redis account (free tier at https://redis.com)
+- [x] PostgreSQL database (local PostgreSQL, Neon, Supabase, Render, or Railway)
 - [x] Paystack account (https://paystack.com)
 - [x] Git installed
 - [x] Code editor (VS Code recommended)
@@ -19,36 +18,28 @@ Before you start, make sure you have:
 
 ## STEP 1: CREATE ACCOUNTS
 
-### 1.1 MongoDB Atlas
-1. Go to https://www.mongodb.com/cloud/atlas/register
-2. Create free account
-3. Create a new cluster (M0 Free tier)
-4. Create database user (username + password)
-5. Whitelist IP: 0.0.0.0/0 (allow all) for development
-6. Get connection string: `mongodb+srv://username:password@cluster.mongodb.net/payroll-db`
+### 1.1 PostgreSQL
+1. Create a PostgreSQL database locally or with a hosted provider.
+2. Create a database user and password.
+3. Get the connection string, for example:
+   `postgresql://username:password@host:5432/remit?schema=public`
+4. Set it as `DATABASE_URL` in `backend/.env`.
 
-### 1.2 Redis Cloud
-1. Go to https://redis.com/try-free/
-2. Create free account
-3. Create new subscription (30MB free)
-4. Create database
-5. Get: Host, Port, Password
-
-### 1.3 Paystack
+### 1.2 Paystack
 1. Go to https://dashboard.paystack.com/signup
 2. Complete registration
 3. Go to Settings → API Keys & Webhooks
 4. Copy **Test Secret Key** (starts with `sk_test_`)
 5. Copy **Test Public Key** (starts with `pk_test_`)
 
-### 1.4 SendGrid (Email)
+### 1.3 SendGrid (Email)
 1. Go to https://signup.sendgrid.com/
 2. Create free account (100 emails/day)
 3. Go to Settings → API Keys
 4. Create new API key
 5. Copy the key (starts with `SG.`)
 
-### 1.5 Twilio (SMS - Optional)
+### 1.4 Twilio (SMS - Optional)
 1. Go to https://www.twilio.com/try-twilio
 2. Create free account ($15 trial credit)
 3. Get Account SID, Auth Token, Phone Number
@@ -73,23 +64,19 @@ cd backend
 npm init -y
 
 # Install dependencies
-npm install express mongoose dotenv cors helmet morgan
-npm install passport passport-local passport-google-oauth20 bcryptjs jsonwebtoken
-npm install express-session connect-redis redis
-npm install bull node-cron
-npm install joi express-validator
-npm install express-rate-limit
-npm install nodemailer twilio
-npm install axios
+pnpm install
 
-# Install dev dependencies
-npm install --save-dev nodemon
+# Generate Prisma Client
+pnpm prisma:generate
+
+# Run database migrations
+pnpm prisma:migrate
 
 # Create .env file
 touch .env
 
 # Create folder structure
-mkdir config controllers middleware models routes services queues jobs utils
+mkdir config controllers middleware models routes services jobs utils
 touch server.js
 ```
 
@@ -153,54 +140,11 @@ app.listen(PORT, () => {
 
 ### Create database config
 
-**File: backend/config/database.js**
+The current backend uses Prisma with PostgreSQL. Configure `DATABASE_URL` in `backend/.env`, then run:
 
-```javascript
-const mongoose = require('mongoose');
-
-const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
-    
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.error(`Error: ${error.message}`);
-    process.exit(1);
-  }
-};
-
-module.exports = connectDB;
-```
-
-### Create Redis config
-
-**File: backend/config/redis.js**
-
-```javascript
-const Redis = require('ioredis');
-
-const redis = new Redis({
-  host: process.env.REDIS_HOST,
-  port: process.env.REDIS_PORT,
-  password: process.env.REDIS_PASSWORD,
-  retryStrategy: (times) => {
-    const delay = Math.min(times * 50, 2000);
-    return delay;
-  }
-});
-
-redis.on('connect', () => {
-  console.log('Redis connected successfully');
-});
-
-redis.on('error', (err) => {
-  console.error('Redis connection error:', err);
-});
-
-module.exports = redis;
+```bash
+pnpm prisma:generate
+pnpm prisma:migrate
 ```
 
 ### Update package.json scripts
@@ -275,85 +219,15 @@ Frontend should open at http://localhost:3000 ✅
 
 ---
 
-## STEP 5: CREATE YOUR FIRST MODEL
+## STEP 5: UPDATE THE DATA MODEL
 
-**File: backend/models/user.model.js**
+The current backend data model lives in `backend/prisma/schema.prisma`.
 
-```javascript
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+After changing the schema, run:
 
-const userSchema = new mongoose.Schema({
-  email: {
-    type: String,
-    required: [true, 'Please provide an email'],
-    unique: true,
-    lowercase: true,
-    trim: true,
-    match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email']
-  },
-  password: {
-    type: String,
-    required: function() {
-      return this.authProvider === 'local';
-    },
-    minlength: [8, 'Password must be at least 8 characters'],
-    select: false
-  },
-  authProvider: {
-    type: String,
-    enum: ['local', 'google'],
-    default: 'local'
-  },
-  googleId: {
-    type: String,
-    unique: true,
-    sparse: true
-  },
-  firstName: {
-    type: String,
-    required: [true, 'Please provide first name'],
-    trim: true
-  },
-  lastName: {
-    type: String,
-    required: [true, 'Please provide last name'],
-    trim: true
-  },
-  companyId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    required: true
-  },
-  role: {
-    type: String,
-    enum: ['admin', 'viewer'],
-    default: 'admin'
-  },
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  lastLogin: Date
-}, {
-  timestamps: true
-});
-
-// Hash password before saving
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
-  
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
-});
-
-// Method to compare password
-userSchema.methods.comparePassword = async function(candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
-};
-
-module.exports = mongoose.model('User', userSchema);
+```bash
+pnpm prisma:migrate
+pnpm prisma:generate
 ```
 
 ---
@@ -487,73 +361,14 @@ node test-paystack.js
 
 ---
 
-## STEP 8: SETUP BULL QUEUE
+## STEP 8: PAYROLL SCHEDULER
 
-**File: backend/queues/payroll.queue.js**
+The current backend uses an in-process payroll scheduler. No Redis or Bull queue setup is required for local development.
 
-```javascript
-const Queue = require('bull');
-const redis = require('../config/redis');
+Configure the polling interval only if needed:
 
-const payrollQueue = new Queue('payroll-processing', {
-  redis: {
-    host: process.env.REDIS_HOST,
-    port: process.env.REDIS_PORT,
-    password: process.env.REDIS_PASSWORD
-  },
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 60000
-    }
-  }
-});
-
-// Test job
-payrollQueue.process('test-job', async (job) => {
-  console.log('Processing test job:', job.data);
-  return { success: true };
-});
-
-payrollQueue.on('completed', (job, result) => {
-  console.log(`Job ${job.id} completed:`, result);
-});
-
-payrollQueue.on('failed', (job, err) => {
-  console.error(`Job ${job.id} failed:`, err.message);
-});
-
-module.exports = payrollQueue;
-```
-
-**Test Queue:**
-
-```javascript
-// Create test file: backend/test-queue.js
-const dotenv = require('dotenv');
-dotenv.config();
-
-const payrollQueue = require('./queues/payroll.queue');
-
-async function testQueue() {
-  try {
-    const job = await payrollQueue.add('test-job', {
-      message: 'Hello from Bull queue!',
-      timestamp: new Date()
-    });
-    
-    console.log('✅ Job added to queue:', job.id);
-  } catch (error) {
-    console.error('❌ Queue test failed:', error);
-  }
-}
-
-testQueue();
-```
-
-```bash
-node test-queue.js
+```env
+PAYROLL_SCHEDULER_INTERVAL_MS=60000
 ```
 
 ---
@@ -661,15 +476,11 @@ curl -X POST http://localhost:5000/api/v1/auth/register -H "Content-Type: applic
 
 ## TROUBLESHOOTING
 
-### MongoDB Connection Failed
-- Check connection string format
+### PostgreSQL Connection Failed
+- Check `DATABASE_URL` format
 - Verify username/password
-- Check IP whitelist (use 0.0.0.0/0 for development)
-
-### Redis Connection Failed
-- Verify host, port, password
-- Check firewall settings
-- Ensure Redis Cloud instance is active
+- Confirm the database allows connections from your machine or host
+- Run Prisma migrations before starting the API
 
 ### Paystack API Error
 - Verify you're using correct keys (test vs live)
@@ -689,12 +500,10 @@ kill -9 <PID>
 
 ## RESOURCES
 
-- **MongoDB Atlas Docs:** https://docs.atlas.mongodb.com/
-- **Redis Cloud Docs:** https://docs.redis.com/
+- **PostgreSQL Docs:** https://www.postgresql.org/docs/
+- **Prisma Docs:** https://www.prisma.io/docs/
 - **Paystack API Docs:** https://paystack.com/docs/api/
 - **Express.js Docs:** https://expressjs.com/
-- **Mongoose Docs:** https://mongoosejs.com/
-- **Bull Queue Docs:** https://github.com/OptimalBits/bull
 - **React Docs:** https://react.dev/
 
 ---

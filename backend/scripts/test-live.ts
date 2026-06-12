@@ -48,8 +48,8 @@ async function runLiveTest() {
         employeeId = employeeRes.data.data.id;
         console.log(`✅ Created Employee: ${employeeId} (Dept: Engineering)`);
 
-        // 3. Deposit Funds (Simulated)
-        console.log('\n--- Step 3: Deposit Funds (Simulated) ---');
+        // 3. Deposit Funds (uses USE_PAYSTACK_MOCK=true for local mock verification)
+        console.log('\n--- Step 3: Deposit Funds ---');
         const depositRes = await axios.post(`${API_URL}/wallet/deposit`, {
             amount: 2000000 // 20,000.00 NGN
         }, {
@@ -60,11 +60,10 @@ async function runLiveTest() {
 
         await axios.get(`${API_URL}/wallet/verify/${reference}`, {
             headers: {
-                Authorization: `Bearer ${authToken}`,
-                'x-simulate-success': 'true'
+                Authorization: `Bearer ${authToken}`
             }
         });
-        console.log('✅ Deposit Verified (Simulated)');
+        console.log('✅ Deposit Verified');
 
         // 4. Schedule Payroll
         console.log('\n--- Step 4: Schedule Payroll Disbursement ---');

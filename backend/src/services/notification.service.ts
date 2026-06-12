@@ -1,6 +1,15 @@
-import { PrismaClient, NotificationType, NotificationChannel } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+type NotificationType =
+  | 'PAYROLL_SCHEDULED'
+  | 'PAYROLL_COMPLETED'
+  | 'PAYROLL_FAILED'
+  | 'DEPOSIT_SUCCESS'
+  | 'LOW_BALANCE'
+  | 'EMPLOYEE_ADDED'
+  | 'GENERAL';
+type NotificationChannel = 'IN_APP' | 'EMAIL' | 'SMS';
 
 class NotificationService {
   async create(params: {
@@ -38,7 +47,7 @@ class NotificationService {
       select: { id: true },
     });
 
-    const notifications = admins.map((admin) => ({
+    const notifications = admins.map((admin: { id: string }) => ({
       companyId: params.companyId,
       userId: admin.id,
       type: params.type,

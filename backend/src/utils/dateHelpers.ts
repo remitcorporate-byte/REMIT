@@ -1,4 +1,4 @@
-import { PaymentFrequency } from '@prisma/client';
+type PaymentFrequency = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 
 export function getNextPaymentDate(
   currentDate: Date,

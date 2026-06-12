@@ -10,6 +10,15 @@ Production: https://your-backend.onrender.com/api/v1
 
 ## AUTHENTICATION ENDPOINTS
 
+### Roles
+New company registrations create an `OWNER` user. Supported roles are:
+
+- `OWNER`: company owner, can manage team access and all operational actions.
+- `ADMIN`: can manage company operations, employees, payroll, wallet, and audit log.
+- `FINANCE`: can run payroll and wallet workflows, and can read employees for payroll setup.
+- `VIEWER`: read-only access to employees, payrolls, transactions, and reports.
+- `EMPLOYEE`: reserved for employee-facing access.
+
 ### Register New Employer
 ```http
 POST /auth/register
@@ -82,7 +91,8 @@ Response: 200 OK
   "success": true,
   "data": {
     "balance": 500000000,
-    "balanceFormatted": "₦5,000,000.00",
+    "reservedBalance": 15000000,
+    "availableBalance": 485000000,
     "currency": "NGN"
   }
 }
@@ -111,13 +121,17 @@ Response: 200 OK
 
 ### Verify Deposit
 ```http
-GET /wallet/verify-deposit/:reference
+GET /wallet/verify/:reference
 Authorization: Bearer <token>
 
 Response: 200 OK
 {
   "success": true,
-  "message": "Deposit verified successfully"
+  "message": "Deposit verified successfully",
+  "data": {
+    "transaction": { ... },
+    "newBalance": 501000000
+  }
 }
 ```
 
@@ -126,6 +140,8 @@ Response: 200 OK
 ## EMPLOYEE ENDPOINTS
 
 ### Get All Employees
+Roles: `OWNER`, `ADMIN`, `FINANCE`, `VIEWER`
+
 ```http
 GET /employees?page=1&limit=50&search=john
 Authorization: Bearer <token>
@@ -146,6 +162,8 @@ Response: 200 OK
 ```
 
 ### Create Employee
+Roles: `OWNER`, `ADMIN`
+
 ```http
 POST /employees
 Authorization: Bearer <token>
@@ -155,12 +173,13 @@ Content-Type: application/json
   "firstName": "Jane",
   "lastName": "Smith",
   "email": "jane@email.com",
-  "bankAccountNumber": "0123456789",
-  "bankCode": "058",
   "bankName": "GTBank",
-  "salaryAmount": 15000000,  // 150,000 NGN in kobo
-  "paymentFrequency": "monthly",
-  "paymentDay": 28
+  "bankCode": "058",
+  "accountNumber": "0123456789",
+  "salary": 15000000,
+  "paymentFrequency": "MONTHLY",
+  "department": "Engineering",
+  "position": "Backend Engineer"
 }
 
 Response: 201 Created
@@ -172,20 +191,62 @@ Response: 201 Created
 }
 ```
 
+### List Banks
+Roles: `OWNER`, `ADMIN`, `FINANCE`
+
+```http
+GET /employees/banks
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "success": true,
+  "data": [
+    { "name": "Access Bank", "code": "044" }
+  ]
+}
+```
+
+### Verify Bank Account
+Roles: `OWNER`, `ADMIN`, `FINANCE`
+
+```http
+POST /employees/verify-bank
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "bankCode": "058",
+  "accountNumber": "0123456789"
+}
+
+Response: 200 OK
+{
+  "success": true,
+  "data": {
+    "account_name": "Jane Smith"
+  }
+}
+```
+
 ### Update Employee
+Roles: `OWNER`, `ADMIN`
+
 ```http
 PUT /employees/:id
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "salaryAmount": 20000000  // Update salary to 200,000 NGN
+  "salary": 20000000
 }
 
 Response: 200 OK
 ```
 
 ### Delete Employee (Soft Delete)
+Roles: `OWNER`, `ADMIN`
+
 ```http
 DELETE /employees/:id
 Authorization: Bearer <token>
@@ -199,11 +260,98 @@ Response: 200 OK
 
 ---
 
+## TEAM ENDPOINTS
+
+### Get Team Members
+Roles: `OWNER`, `ADMIN`, `FINANCE`, `VIEWER`
+
+```http
+GET /team
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "success": true,
+  "data": [
+    {
+      "id": "user_id",
+      "email": "finance@company.com",
+      "firstName": "Ada",
+      "lastName": "Okafor",
+      "role": "FINANCE",
+      "isActive": true,
+      "createdAt": "2026-06-11T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+### Invite Team Member
+Roles: `OWNER`
+
+```http
+POST /team/invite
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "email": "finance@company.com",
+  "firstName": "Ada",
+  "lastName": "Okafor",
+  "role": "FINANCE",
+  "password": "OptionalPass123!"
+}
+
+Response: 201 Created
+{
+  "success": true,
+  "data": {
+    "id": "user_id",
+    "email": "finance@company.com",
+    "role": "FINANCE",
+    "temporaryPassword": "Remit-generated!"
+  }
+}
+```
+
+If `password` is omitted, the API returns a generated `temporaryPassword` once.
+
+### Update Team Member Role
+Roles: `OWNER`
+
+```http
+PUT /team/:id/role
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "role": "VIEWER"
+}
+
+Response: 200 OK
+```
+
+Assignable roles are `ADMIN`, `FINANCE`, and `VIEWER`. The owner role cannot be reassigned from this endpoint.
+
+### Deactivate Team Member
+Roles: `OWNER`
+
+```http
+PUT /team/:id/deactivate
+Authorization: Bearer <token>
+
+Response: 200 OK
+```
+
+---
+
 ## PAYROLL ENDPOINTS
 
 ### Get All Payrolls
+Roles: `OWNER`, `ADMIN`, `FINANCE`, `VIEWER`
+
 ```http
-GET /payrolls?status=completed&page=1&limit=20
+GET /payrolls?status=COMPLETED&page=1&limit=20
 Authorization: Bearer <token>
 
 Response: 200 OK
@@ -216,15 +364,20 @@ Response: 200 OK
 }
 ```
 
-### Schedule Payroll
+### Create Payroll Draft
+Roles: `OWNER`, `ADMIN`, `FINANCE`
+
 ```http
-POST /payrolls/schedule
+POST /payrolls/drafts
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
   "scheduledDate": "2026-02-28T09:00:00Z",
-  "paymentFrequency": "monthly"
+  "employeeIds": [
+    "9db280b7-833f-4d19-9e80-dfe45951287e"
+  ],
+  "note": "February payroll"
 }
 
 Response: 201 Created
@@ -236,9 +389,57 @@ Response: 201 Created
 }
 ```
 
-### Cancel Payroll
+### Submit Payroll For Approval
+Roles: `OWNER`, `ADMIN`, `FINANCE`
+
 ```http
-POST /payrolls/:id/cancel
+PUT /payrolls/:id/submit
+Authorization: Bearer <token>
+
+Response: 200 OK
+```
+
+### Approve Payroll
+Roles: `OWNER`, `ADMIN`, `FINANCE`
+
+```http
+PUT /payrolls/:id/approve
+Authorization: Bearer <token>
+
+Response: 200 OK
+```
+
+If another active `OWNER`, `ADMIN`, or `FINANCE` user exists in the company, the payroll creator cannot approve their own submitted payroll.
+
+### Get Payroll Detail
+Roles: `OWNER`, `ADMIN`, `FINANCE`, `VIEWER`
+
+```http
+GET /payrolls/:id
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "success": true,
+  "data": {
+    "status": "PROCESSING",
+    "payrollEmployees": [
+      {
+        "status": "PENDING",
+        "amount": 15000000,
+        "employee": { ... },
+        "transaction": { ... }
+      }
+    ]
+  }
+}
+```
+
+### Cancel Payroll
+Roles: `OWNER`, `ADMIN`, `FINANCE`
+
+```http
+PUT /payrolls/:id/cancel
 Authorization: Bearer <token>
 
 Response: 200 OK
@@ -249,8 +450,10 @@ Response: 200 OK
 ## TRANSACTION ENDPOINTS
 
 ### Get All Transactions
+Roles: `OWNER`, `ADMIN`, `FINANCE`, `VIEWER`
+
 ```http
-GET /transactions?type=disbursement&startDate=2026-01-01&endDate=2026-02-14
+GET /transactions?type=PAYROLL_DEBIT&status=SUCCESS&page=1&limit=20
 Authorization: Bearer <token>
 
 Response: 200 OK
@@ -264,8 +467,20 @@ Response: 200 OK
 ```
 
 ### Export Transactions
+Roles: `OWNER`, `ADMIN`, `FINANCE`, `VIEWER`
+
 ```http
-GET /transactions/export?startDate=2026-01-01&endDate=2026-02-14
+GET /transactions/export
+Authorization: Bearer <token>
+
+Response: 200 OK (CSV file)
+```
+
+### Export Payroll
+Roles: `OWNER`, `ADMIN`, `FINANCE`, `VIEWER`
+
+```http
+GET /payrolls/:id/export
 Authorization: Bearer <token>
 
 Response: 200 OK (CSV file)
@@ -277,7 +492,7 @@ Response: 200 OK (CSV file)
 
 ### Dashboard Summary
 ```http
-GET /reports/dashboard
+GET /company/dashboard
 Authorization: Bearer <token>
 
 Response: 200 OK
@@ -290,6 +505,43 @@ Response: 200 OK
     "monthlyPayrollCost": 6750000000,
     "nextPayrollDate": "2026-02-28T09:00:00Z"
   }
+}
+```
+
+### System Status
+```http
+GET /company/system-status
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "success": true,
+  "data": {
+    "apiConnected": true,
+    "databaseConnected": true,
+    "schedulerMode": "in-process",
+    "paystackMode": "mock"
+  }
+}
+```
+
+### Audit Log
+Roles: `OWNER`, `ADMIN`
+
+```http
+GET /company/audit-log?limit=50
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "success": true,
+  "data": [
+    {
+      "action": "PAYROLL_APPROVED",
+      "entityType": "Payroll",
+      "createdAt": "2026-06-11T10:00:00.000Z"
+    }
+  ]
 }
 ```
 

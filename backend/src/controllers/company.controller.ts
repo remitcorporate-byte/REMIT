@@ -23,7 +23,7 @@ export const getCompany = async (req: Request, res: Response, next: NextFunction
     const company = await prisma.company.findUnique({
       where: { id: req.user.companyId },
       include: {
-        wallet: { select: { id: true, balance: true, currency: true } },
+        wallet: { select: { id: true, balance: true, reservedBalance: true, currency: true } },
         _count: {
           select: {
             employees: { where: { isActive: true } },
@@ -101,7 +101,7 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
         }),
         prisma.wallet.findUnique({
           where: { companyId },
-          select: { balance: true, currency: true },
+          select: { balance: true, reservedBalance: true, currency: true },
         }),
         prisma.payroll.findMany({
           where: {
@@ -129,6 +129,8 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
       data: {
         employeeCount,
         walletBalance: wallet?.balance || 0,
+        reservedBalance: wallet?.reservedBalance || 0,
+        availableBalance: wallet ? wallet.balance - wallet.reservedBalance : 0,
         currency: wallet?.currency || 'NGN',
         upcomingPayrolls,
         recentTransactions,
@@ -150,7 +152,7 @@ export const getAdvancedStats = async (req: Request, res: Response, next: NextFu
     const [wallet, transactions, employees] = await Promise.all([
       prisma.wallet.findUnique({
         where: { companyId },
-        select: { balance: true }
+        select: { balance: true, reservedBalance: true }
       }),
       prisma.transaction.findMany({
         where: { companyId, status: 'SUCCESS' },
@@ -164,15 +166,15 @@ export const getAdvancedStats = async (req: Request, res: Response, next: NextFu
 
     // Financial Metrics
     const totalDeposited = transactions
-      .filter(t => t.type === 'DEPOSIT')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter((t: any) => t.type === 'DEPOSIT')
+      .reduce((sum: number, t: any) => sum + t.amount, 0);
     const totalPaidOut = transactions
-      .filter(t => t.type === 'PAYROLL_DEBIT')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter((t: any) => t.type === 'PAYROLL_DEBIT')
+      .reduce((sum: number, t: any) => sum + t.amount, 0);
 
     // Employee Analytics
     const depts: Record<string, { count: number; payroll: number }> = {};
-    employees.forEach(emp => {
+    employees.forEach((emp: any) => {
       const dept = emp.department || 'Unassigned';
       if (!depts[dept]) depts[dept] = { count: 0, payroll: 0 };
       depts[dept].count++;
@@ -188,7 +190,7 @@ export const getAdvancedStats = async (req: Request, res: Response, next: NextFu
       monthlyStats[key] = { month: key, deposits: 0, payroll: 0 };
     }
 
-    transactions.forEach(t => {
+    transactions.forEach((t: any) => {
       const monthKey = t.createdAt.toISOString().slice(0, 7);
       if (monthlyStats[monthKey]) {
         if (t.type === 'DEPOSIT') monthlyStats[monthKey].deposits += t.amount;
@@ -202,7 +204,9 @@ export const getAdvancedStats = async (req: Request, res: Response, next: NextFu
         financials: {
           totalDeposited,
           totalPaidOut,
-          currentBalance: wallet?.balance || 0
+          currentBalance: wallet?.balance || 0,
+          reservedBalance: wallet?.reservedBalance || 0,
+          availableBalance: wallet ? wallet.balance - wallet.reservedBalance : 0
         },
         employees: {
           total: employees.length,
@@ -211,6 +215,55 @@ export const getAdvancedStats = async (req: Request, res: Response, next: NextFu
         trends: Object.values(monthlyStats)
       },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get system/provider status
+// @route   GET /api/v1/company/system-status
+export const getSystemStatus = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user?.companyId) {
+      throw new AppError('No company associated with this user', 400);
+    }
+
+    await prisma.$queryRaw`SELECT 1`;
+
+    res.json({
+      success: true,
+      data: {
+        apiConnected: true,
+        databaseConnected: true,
+        schedulerMode: 'in-process',
+        paystackMode: process.env.USE_PAYSTACK_MOCK === 'true' ? 'mock' : 'live',
+        frontendUrl: process.env.FRONTEND_URL || null,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get company audit log
+// @route   GET /api/v1/company/audit-log
+export const getAuditLog = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user?.companyId) {
+      throw new AppError('No company associated with this user', 400);
+    }
+
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const logs = await prisma.auditLog.findMany({
+      where: { companyId: req.user.companyId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true } },
+      },
+    });
+
+    res.json({ success: true, data: logs });
   } catch (error) {
     next(error);
   }

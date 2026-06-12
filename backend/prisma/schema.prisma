@@ -8,7 +8,10 @@ datasource db {
 }
 
 enum Role {
+  OWNER
   ADMIN
+  FINANCE
+  VIEWER
   EMPLOYEE
 }
 
@@ -24,6 +27,8 @@ enum PaymentFrequency {
 }
 
 enum PayrollStatus {
+  DRAFT
+  PENDING_APPROVAL
   SCHEDULED
   PROCESSING
   COMPLETED
@@ -78,6 +83,9 @@ model User {
   company       Company?       @relation(fields: [companyId], references: [id])
   ownedCompany  Company?       @relation("CompanyOwner")
   notifications Notification[]
+  createdPayrolls Payroll[]    @relation("PayrollCreatedBy")
+  approvedPayrolls Payroll[]   @relation("PayrollApprovedBy")
+  auditLogs     AuditLog[]
 
   @@index([email])
   @@index([companyId])
@@ -101,17 +109,19 @@ model Company {
   payrolls      Payroll[]
   transactions  Transaction[]
   notifications Notification[]
+  auditLogs     AuditLog[]
 
   @@index([ownerId])
 }
 
 model Wallet {
-  id        String   @id @default(uuid())
-  companyId String   @unique
-  balance   Int      @default(0) // stored in kobo (1 NGN = 100 kobo)
-  currency  String   @default("NGN")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(uuid())
+  companyId       String   @unique
+  balance         Int      @default(0) // stored in kobo (1 NGN = 100 kobo)
+  reservedBalance Int      @default(0)
+  currency        String   @default("NGN")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   company      Company       @relation(fields: [companyId], references: [id])
   transactions Transaction[]
@@ -149,9 +159,15 @@ model Employee {
 model Payroll {
   id            String        @id @default(uuid())
   companyId     String
+  createdById   String?
+  approvedById  String?
   scheduledDate DateTime
   processedDate DateTime?
-  status        PayrollStatus @default(SCHEDULED)
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  cancelledAt   DateTime?
+  failureReason String?
+  status        PayrollStatus @default(DRAFT)
   totalAmount   Int           @default(0) // in kobo
   employeeCount Int           @default(0)
   note          String?
@@ -159,9 +175,13 @@ model Payroll {
   updatedAt     DateTime      @updatedAt
 
   company          Company           @relation(fields: [companyId], references: [id])
+  createdBy        User?             @relation("PayrollCreatedBy", fields: [createdById], references: [id])
+  approvedBy       User?             @relation("PayrollApprovedBy", fields: [approvedById], references: [id])
   payrollEmployees PayrollEmployee[]
 
   @@index([companyId])
+  @@index([createdById])
+  @@index([approvedById])
   @@index([status])
   @@index([scheduledDate])
 }
@@ -177,6 +197,7 @@ model PayrollEmployee {
 
   payroll  Payroll  @relation(fields: [payrollId], references: [id])
   employee Employee @relation(fields: [employeeId], references: [id])
+  transaction Transaction?
 
   @@unique([payrollId, employeeId])
   @@index([payrollId])
@@ -188,6 +209,7 @@ model Transaction {
   companyId          String
   walletId           String
   employeeId         String?
+  payrollEmployeeId  String?           @unique
   type               TransactionType
   amount             Int               // in kobo
   status             TransactionStatus @default(PENDING)
@@ -200,9 +222,11 @@ model Transaction {
   company  Company   @relation(fields: [companyId], references: [id])
   wallet   Wallet    @relation(fields: [walletId], references: [id])
   employee Employee? @relation(fields: [employeeId], references: [id])
+  payrollEmployee PayrollEmployee? @relation(fields: [payrollEmployeeId], references: [id])
 
   @@index([companyId])
   @@index([walletId])
+  @@index([payrollEmployeeId])
   @@index([status])
   @@index([type])
 }
@@ -225,4 +249,23 @@ model Notification {
   @@index([companyId])
   @@index([userId])
   @@index([isRead])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  companyId  String
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  user    User?   @relation(fields: [userId], references: [id])
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([entityType])
+  @@index([createdAt])
 }

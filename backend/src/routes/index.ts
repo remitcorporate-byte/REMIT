@@ -7,6 +7,7 @@ import payrollRoutes from './payroll.routes';
 import transactionRoutes from './transaction.routes';
 import notificationRoutes from './notification.routes';
 import webhookRoutes from './webhook.routes';
+import teamRoutes from './team.routes';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/payrolls', payrollRoutes);
 router.use('/transactions', transactionRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/webhooks', webhookRoutes);
+router.use('/team', teamRoutes);
 
 export default router;

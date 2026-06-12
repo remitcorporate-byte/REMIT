@@ -50,16 +50,15 @@ async function runE2ETest() {
         employeeId = empRes.data.data.id;
         console.log(`✅ Created Employee: ${employeeId}`);
 
-        // 3. Deposit Funds (Simulated)
-        console.log('\n--- Step 3: Deposit Funds (Automated Simulation) ---');
+        // 3. Deposit Funds (uses USE_PAYSTACK_MOCK=true for local mock verification)
+        console.log('\n--- Step 3: Deposit Funds ---');
         const depositAmount = 2000000; // 20,000 NGN
         const depInitRes = await axios.post(`${BASE_URL}/wallet/deposit`, { amount: depositAmount }, authHeaders());
         const reference = depInitRes.data.data.reference;
         console.log(`✅ Deposit Initialized: ${reference}`);
 
-        // Verify using simulation header to bypass manual UI
-        const verifyRes = await axios.get(`${BASE_URL}/wallet/verify/${reference}`, authHeaders({ 'x-simulate-success': 'true' }));
-        console.log(`✅ Deposit Verified (Simulated): New Balance = ${verifyRes.data.data.newBalance}`);
+        const verifyRes = await axios.get(`${BASE_URL}/wallet/verify/${reference}`, authHeaders());
+        console.log(`✅ Deposit Verified: New Balance = ${verifyRes.data.data.newBalance}`);
 
         // 4. Schedule Payroll
         console.log('\n--- Step 4: Schedule Payroll Disbursement ---');
@@ -77,16 +76,16 @@ async function runE2ETest() {
         for (let i = 0; i < 5; i++) {
             await new Promise(resolve => setTimeout(resolve, 1000));
             const checkPayroll = await axios.get(`${BASE_URL}/payrolls/${payrollId}`, authHeaders());
-            if (checkPayroll.data.data.status === 'COMPLETED') {
+            if (checkPayroll.data.data.status === 'PROCESSING' || checkPayroll.data.data.status === 'COMPLETED') {
                 processed = true;
-                console.log('✅ System Disbursement Completed Automatically');
+                console.log(`✅ Payroll reached expected state: ${checkPayroll.data.data.status}`);
                 break;
             }
             console.log(`... polling status: ${checkPayroll.data.data.status}`);
         }
 
         if (!processed) {
-            throw new Error('Disbursement timed out or failed to complete.');
+            throw new Error('Disbursement timed out or failed to reach webhook-pending state.');
         }
 
         // 6. Final Validation

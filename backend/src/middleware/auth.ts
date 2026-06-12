@@ -1,10 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { PrismaClient, Role } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import config from '../config';
 import { AppError } from './errorHandler';
 
 const prisma = new PrismaClient();
+type Role = 'OWNER' | 'ADMIN' | 'FINANCE' | 'VIEWER' | 'EMPLOYEE';
 
 interface JwtPayload {
   id: string;

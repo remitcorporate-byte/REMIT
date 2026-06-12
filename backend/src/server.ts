@@ -12,7 +12,13 @@ const app = express();
 
 // Security middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: config.frontendUrl
+    ? config.frontendUrl
+    : config.env === 'development'
+      ? true
+      : false,
+}));
 
 // Body parsing - raw body needed for webhook signature verification
 app.use('/api/v1/webhooks', express.json({ limit: '1mb' }));
@@ -45,7 +51,7 @@ const server = app.listen(config.port, () => {
   console.log(`[Server] REMIT API running in ${config.env} mode on port ${config.port}`);
   console.log(`[Server] Health check: http://localhost:${config.port}/api/v1/health`);
 
-  // Start the cron-based payroll scheduler
+  // Start the in-process payroll scheduler
   startPayrollScheduler();
 });
 

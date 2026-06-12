@@ -3,6 +3,7 @@ import { paystackService } from '../services/paystack.service';
 import { notificationService } from '../services/notification.service';
 import { generateReference } from '../utils/formatters';
 import { getNextPaymentDate } from '../utils/dateHelpers';
+import { auditService } from '../services/audit.service';
 
 const prisma = new PrismaClient();
 
@@ -16,13 +17,56 @@ export async function processPayroll(data: ProcessPayrollData) {
 
   console.log(`[ProcessPayroll] Starting payroll ${payrollId}`);
 
-  // Update payroll status to PROCESSING
-  await prisma.payroll.update({
-    where: { id: payrollId },
-    data: { status: 'PROCESSING' },
-  });
-
   try {
+    const started = await prisma.$transaction(async (tx: any) => {
+      const payroll = await tx.payroll.findUnique({
+        where: { id: payrollId },
+        include: {
+          payrollEmployees: {
+            where: { status: 'PENDING' },
+            select: { amount: true },
+          },
+        },
+      });
+
+      if (!payroll) {
+        throw new Error('Payroll not found');
+      }
+
+      if (payroll.status !== 'SCHEDULED') {
+        console.log(`[ProcessPayroll] Payroll ${payrollId} is ${payroll.status}; skipping duplicate job`);
+        return false;
+      }
+
+      await tx.payroll.update({
+        where: { id: payrollId },
+        data: { status: 'PROCESSING' },
+      });
+
+      const pendingAmount = payroll.payrollEmployees.reduce((sum: number, pe: { amount: number }) => sum + pe.amount, 0);
+
+      if (!payroll.processedDate) {
+        const wallet = await tx.wallet.findUnique({
+          where: { companyId },
+        });
+
+        if (wallet && wallet.reservedBalance > 0) {
+          await tx.wallet.update({
+            where: { id: wallet.id },
+            data: {
+              reservedBalance: {
+                decrement: Math.min(wallet.reservedBalance, pendingAmount),
+              },
+            },
+          });
+        }
+      }
+
+      return true;
+    });
+
+    if (!started) return;
+
     // Get payroll with employees
     const payroll = await prisma.payroll.findUnique({
       where: { id: payrollId },
@@ -38,14 +82,26 @@ export async function processPayroll(data: ProcessPayrollData) {
       throw new Error('Payroll not found');
     }
 
+    const pendingAmount = payroll.payrollEmployees.reduce((sum: number, pe: { amount: number }) => sum + pe.amount, 0);
+
+    if (pendingAmount === 0) {
+      await prisma.payroll.update({
+        where: { id: payrollId },
+        data: { status: 'COMPLETED', processedDate: new Date() },
+      });
+      return;
+    }
+
     // Check wallet balance
     const wallet = await prisma.wallet.findUnique({
       where: { companyId },
     });
 
-    if (!wallet || wallet.balance < payroll.totalAmount) {
+    const availableBalance = wallet ? wallet.balance - wallet.reservedBalance : 0;
+
+    if (!wallet || availableBalance < pendingAmount) {
       throw new Error(
-        `Insufficient balance. Required: ${payroll.totalAmount}, Available: ${wallet?.balance || 0}`
+        `Insufficient balance. Required: ${pendingAmount}, Available: ${availableBalance}`
       );
     }
 
@@ -81,7 +137,7 @@ export async function processPayroll(data: ProcessPayrollData) {
         console.log(`[ProcessPayroll] Initiating transfer with reference: ${reference}`);
 
         // Deduct from wallet and create transaction
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx: any) => {
           await tx.wallet.update({
             where: { id: wallet.id },
             data: { balance: { decrement: pe.amount } },
@@ -92,6 +148,7 @@ export async function processPayroll(data: ProcessPayrollData) {
               companyId,
               walletId: wallet.id,
               employeeId: employee.id,
+              payrollEmployeeId: pe.id,
               type: 'PAYROLL_DEBIT',
               amount: pe.amount,
               status: 'PENDING',
@@ -110,6 +167,25 @@ export async function processPayroll(data: ProcessPayrollData) {
             reason: `Salary payment - ${employee.firstName} ${employee.lastName}`,
             reference,
           });
+
+          if (process.env.USE_PAYSTACK_MOCK === 'true') {
+            await prisma.$transaction(async (tx: any) => {
+              await tx.transaction.updateMany({
+                where: { paystackReference: reference, status: 'PENDING' },
+                data: { status: 'SUCCESS', paystackTransferId: `TRF_mock_${Date.now()}` },
+              });
+              await tx.payrollEmployee.update({
+                where: { id: pe.id },
+                data: { status: 'SUCCESS' },
+              });
+              await tx.employee.update({
+                where: { id: employee.id },
+                data: {
+                  nextPaymentDate: getNextPaymentDate(new Date(), employee.paymentFrequency),
+                },
+              });
+            });
+          }
         } catch (transferError: any) {
           // Transfer failed — reverse the wallet deduction so money isn't lost
           console.error(
@@ -117,7 +193,7 @@ export async function processPayroll(data: ProcessPayrollData) {
             transferError.response?.data || transferError.message
           );
 
-          await prisma.$transaction(async (tx) => {
+          await prisma.$transaction(async (tx: any) => {
             await tx.wallet.update({
               where: { id: wallet.id },
               data: { balance: { increment: pe.amount } },
@@ -126,28 +202,16 @@ export async function processPayroll(data: ProcessPayrollData) {
               where: { paystackReference: reference },
               data: { status: 'FAILED' },
             });
+            await tx.payrollEmployee.update({
+              where: { id: pe.id },
+              data: { status: 'FAILED' },
+            });
           });
 
           throw transferError;
         }
 
-        // Update payroll employee status
-        await prisma.payrollEmployee.update({
-          where: { id: pe.id },
-          data: { status: 'SUCCESS' },
-        });
         console.log(`[ProcessPayroll] Transfer initiated successfully for ${employee.id}`);
-
-        // Update next payment date
-        await prisma.employee.update({
-          where: { id: employee.id },
-          data: {
-            nextPaymentDate: getNextPaymentDate(
-              new Date(),
-              employee.paymentFrequency
-            ),
-          },
-        });
 
         successCount++;
       } catch (error: any) {
@@ -155,38 +219,67 @@ export async function processPayroll(data: ProcessPayrollData) {
           `[ProcessPayroll] Failed for employee ${employee.id}:`,
           error.response?.data || error.message
         );
-
-        await prisma.payrollEmployee.update({
+        const latest = await prisma.payrollEmployee.findUnique({
           where: { id: pe.id },
-          data: { status: 'FAILED' },
+          select: { status: true },
         });
+
+        if (latest?.status === 'PENDING') {
+          await prisma.payrollEmployee.update({
+            where: { id: pe.id },
+            data: { status: 'FAILED' },
+          });
+        }
 
         failCount++;
       }
     }
 
-    // Update payroll status
-    const finalStatus = failCount === 0 ? 'COMPLETED' : successCount === 0 ? 'FAILED' : 'COMPLETED';
+    const remainingPending = await prisma.payrollEmployee.count({
+      where: { payrollId, status: 'PENDING' },
+    });
+    const finalStatus = remainingPending > 0 ? 'PROCESSING' : failCount > 0 ? 'FAILED' : 'COMPLETED';
 
     await prisma.payroll.update({
       where: { id: payrollId },
       data: {
         status: finalStatus,
         processedDate: new Date(),
+        failureReason: failCount > 0 ? `${failCount} employee transfers failed` : null,
       },
     });
 
-    // Send notification
-    const notifType = failCount === 0 ? 'PAYROLL_COMPLETED' : 'PAYROLL_FAILED';
+    await auditService.record({
+      companyId,
+      action: 'PAYROLL_PROCESSING_FINISHED',
+      entityType: 'Payroll',
+      entityId: payrollId,
+      metadata: { successCount, failCount, finalStatus },
+    });
+
+    const notifType =
+      finalStatus === 'FAILED'
+        ? 'PAYROLL_FAILED'
+        : finalStatus === 'COMPLETED'
+          ? 'PAYROLL_COMPLETED'
+          : 'PAYROLL_SCHEDULED';
+    const title =
+      finalStatus === 'FAILED'
+        ? 'Payroll Failed'
+        : finalStatus === 'COMPLETED'
+          ? 'Payroll Completed'
+          : 'Payroll Transfers Initiated';
     const message =
-      failCount === 0
-        ? `Payroll processed successfully. ${successCount} employees paid.`
-        : `Payroll partially completed. ${successCount} succeeded, ${failCount} failed.`;
+      finalStatus === 'PROCESSING'
+        ? `Payroll transfer requests were initiated for ${successCount} employees and are awaiting Paystack confirmation.`
+        : finalStatus === 'COMPLETED'
+          ? `Payroll processed successfully. ${successCount} employees paid.`
+          : `Payroll failed. ${successCount} transfer requests initiated, ${failCount} failed.`;
 
     await notificationService.notifyCompanyAdmins({
       companyId,
       type: notifType,
-      title: failCount === 0 ? 'Payroll Completed' : 'Payroll Partially Failed',
+      title,
       message,
     });
 
@@ -198,7 +291,15 @@ export async function processPayroll(data: ProcessPayrollData) {
 
     await prisma.payroll.update({
       where: { id: payrollId },
-      data: { status: 'FAILED' },
+      data: { status: 'FAILED', processedDate: new Date(), failureReason: (error as Error).message },
+    });
+
+    await auditService.record({
+      companyId,
+      action: 'PAYROLL_PROCESSING_FAILED',
+      entityType: 'Payroll',
+      entityId: payrollId,
+      metadata: { error: (error as Error).message },
     });
 
     await notificationService.notifyCompanyAdmins({

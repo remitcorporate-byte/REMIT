@@ -85,3 +85,42 @@ export const getTransaction = async (req: Request, res: Response, next: NextFunc
     next(error);
   }
 };
+
+// @desc    Export transactions as CSV
+// @route   GET /api/v1/transactions/export
+export const exportTransactions = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user?.companyId) {
+      throw new AppError('No company associated with this user', 400);
+    }
+
+    const transactions = await prisma.transaction.findMany({
+      where: { companyId: req.user.companyId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        employee: { select: { firstName: true, lastName: true, email: true } },
+      },
+    });
+
+    const rows = [
+      ['Date', 'Type', 'Status', 'Amount Kobo', 'Employee', 'Reference', 'Description'],
+      ...transactions.map((transaction) => [
+        transaction.createdAt.toISOString(),
+        transaction.type,
+        transaction.status,
+        transaction.amount,
+        transaction.employee
+          ? `${transaction.employee.firstName} ${transaction.employee.lastName}`
+          : '',
+        transaction.paystackReference || transaction.paystackTransferId || '',
+        transaction.description || '',
+      ]),
+    ];
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="transactions.csv"');
+    res.send(rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n'));
+  } catch (error) {
+    next(error);
+  }
+};

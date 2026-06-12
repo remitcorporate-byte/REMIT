@@ -46,14 +46,14 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     const hashedPassword = await bcrypt.hash(body.password, salt);
 
     // Create user, company, and wallet in a transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const user = await tx.user.create({
         data: {
           email: body.email,
           password: hashedPassword,
           firstName: body.firstName,
           lastName: body.lastName,
-          role: 'ADMIN',
+          role: 'OWNER',
         },
       });
 

@@ -10,7 +10,7 @@ import { protect, authorize } from '../middleware/auth';
 const router = Router();
 
 router.use(protect);
-router.use(authorize('ADMIN'));
+router.use(authorize('OWNER', 'ADMIN', 'FINANCE'));
 
 router.get('/', getWallet);
 router.post('/deposit', initializeDeposit);
