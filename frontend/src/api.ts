@@ -76,7 +76,21 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   const text = await response.text()
-  const payload = text ? JSON.parse(text) : null
+  let payload: any = null
+
+  if (text) {
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      const contentType = response.headers.get('content-type') || 'unknown'
+      if (text.trim().startsWith('<!doctype') || text.trim().startsWith('<html')) {
+        throw new Error(
+          `API returned HTML instead of JSON. Check VITE_API_URL. Current target: ${API_URL} (${contentType})`,
+        )
+      }
+      throw new Error(`API returned a non-JSON response. Check VITE_API_URL. Current target: ${API_URL} (${contentType})`)
+    }
+  }
   if (!response.ok) {
     throw new Error(payload?.error || payload?.message || `Request failed (${response.status})`)
   }
