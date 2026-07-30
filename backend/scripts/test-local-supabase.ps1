@@ -37,6 +37,12 @@ try {
         throw 'Prisma migrations failed.'
     }
 
+    Write-Host 'Generating the Prisma client...'
+    & corepack pnpm exec prisma generate
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Prisma client generation failed.'
+    }
+
     Write-Host 'Building the backend...'
     & corepack pnpm build
     if ($LASTEXITCODE -ne 0) {
@@ -77,6 +83,12 @@ try {
     & corepack pnpm exec ts-node scripts/test-payroll-approval.ts
     if ($LASTEXITCODE -ne 0) {
         throw 'Payroll approval-control tests failed.'
+    }
+
+    Write-Host 'Running payroll worker durability tests...'
+    & corepack pnpm exec ts-node scripts/test-payroll-worker-durability.ts
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Payroll worker durability tests failed.'
     }
 
     Write-Host 'Local Supabase API tests passed.'

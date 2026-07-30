@@ -8,7 +8,11 @@
 
 REMIT has a credible pilot/demo foundation for a Nigerian payroll operations product. The codebase has a clear frontend/backend split, a useful Prisma data model, company-scoped access patterns, kobo-based monetary storage, Paystack-shaped flows, audit logging, and a functional dashboard surface.
 
-It is not production-ready for handling real payroll money yet. The largest gaps are database availability, durable payroll execution, webhook reliability/idempotency, approval-control enforcement, test coverage, and frontend error handling.
+It is not production-ready for handling real payroll money yet. Local remediation
+has closed the immediate duplicate-processing and approval-bypass defects. The
+largest remaining gaps are remote database availability, provider-transfer
+reconciliation, persistent event/job infrastructure, broader automated test
+coverage, and frontend error handling.
 
 ### Readiness summary
 
@@ -20,8 +24,8 @@ It is not production-ready for handling real payroll money yet. The largest gaps
 | API process health | Verified HTTP 200 |
 | Local authenticated database path | Verified against isolated local Supabase |
 | Remote authenticated database path | Blocked by remote database connectivity failure |
-| Payroll execution durability | Not production-safe |
-| Paystack webhook reliability | Needs hardening |
+| Payroll execution durability | Database claims and stale-job recovery verified locally; persistent worker still required |
+| Paystack webhook reliability | Core idempotency verified locally; persistent event receipts still required |
 | Frontend linting | Broken because ESLint is missing |
 | Automated test coverage | Insufficient |
 | Overall production readiness | Not ready for live payroll funds |
@@ -53,14 +57,26 @@ against the isolated local Supabase database:
   authorized approver exists.
 - Local tests verify that an independent Finance user is recorded as approver
   and that cancelling the approved payroll releases its exact reservation.
+- Payroll execution now atomically claims a due `SCHEDULED` row before releasing
+  reservations or creating a debit, preventing multiple API instances from
+  processing the same payroll.
+- Processing attempts, start times, heartbeats, and one-time reservation release
+  timestamps are persisted on each payroll.
+- Stale jobs with no provider transaction are safely requeued. Stale jobs with
+  an existing provider transaction are stopped as `FAILED` and explicitly
+  require reconciliation, preventing an uncertain transfer from being sent
+  twice.
+- A durability integration test runs three concurrent workers against one
+  payroll and simulates crashes both before and after provider dispatch.
 
 The local concurrency suite sends five concurrent copies of the same deposit
 event, five concurrent deposit-verification requests, and five concurrent
 copies of the same transfer-reversal event. The suite passed.
 
 Remaining production work in this area includes persistent provider-event
-receipts, a transactional outbox for audit/notification side effects, durable
-job execution, and deployed Paystack webhook verification.
+receipts, a transactional outbox for audit/notification side effects, a
+separate persistent worker/dead-letter system, automated Paystack transfer
+reconciliation, and deployed Paystack webhook verification.
 
 ### Build verification
 
@@ -110,7 +126,7 @@ The remote/deployed database path therefore remains unverified until that
 connectivity issue is resolved.
 
 An isolated `remit_test` database was subsequently created inside the existing
-local Supabase Docker stack at `127.0.0.1:54322`. All five Prisma migrations
+local Supabase Docker stack at `127.0.0.1:54322`. All six Prisma migrations
 were applied successfully. With Paystack mock mode enabled, the local API smoke
 test passed registration, authentication, company lookup, dashboard loading,
 employee creation, payroll listing, and transaction listing.
@@ -187,16 +203,23 @@ The current health endpoint returns success without checking the database, so de
 3. Make deployment health checks use readiness for traffic eligibility.
 4. Run authenticated API smoke tests after connectivity is restored.
 
-### Critical: payroll scheduler and queue are not durable
+### Partially addressed locally: payroll scheduler and queue durability
 
-Payroll execution is implemented inside the API process. The scheduler uses `setInterval`, and the queue tracks active jobs in an in-memory `Set`.
+Payroll execution remains inside the API process. The scheduler uses
+`setInterval`, and the queue tracks active jobs in an in-memory `Set`.
+However, execution ownership is now persisted through an atomic
+`SCHEDULED -> PROCESSING` database claim, with attempt and heartbeat metadata.
 
 This creates several production risks:
 
-- A process restart can miss due payrolls or leave jobs in an uncertain state.
-- Multiple API instances can race to process the same payroll.
+- A process restart can delay due payrolls until another scheduler cycle.
 - Deployments and crashes can interrupt a job without durable retry state.
 - There is no persistent dead-letter or failure queue.
+
+Multiple API instances can still enqueue the same payroll, but only one worker
+can claim it. A stale pre-dispatch claim is requeued; a stale claim with a
+provider transaction is stopped for reconciliation instead of retried blindly.
+These paths passed against local PostgreSQL with three concurrent workers.
 
 **Evidence:**
 
@@ -205,7 +228,10 @@ This creates several production risks:
 
 **Recommended action:**
 
-Move scheduled payroll execution to a persistent queue/worker system or a durable external scheduler. Add database-backed job claims, idempotency keys, retry policy, dead-letter handling, and execution audit records.
+Move scheduled execution to a persistent queue/worker system or durable
+external scheduler. Keep the database claim as the final ownership guard, and
+add retry policy, dead-letter handling, provider reconciliation, and execution
+audit records.
 
 ### Addressed locally: webhook processing acknowledged failures
 
@@ -258,11 +284,14 @@ that the approved payroll records that Finance user.
 The compatibility route can be removed completely after known external API
 clients have migrated away from it.
 
-### High: in-process failure handling can leave operational ambiguity
+### Partially addressed locally: in-process failure ambiguity
 
 Payroll processing changes status and wallet reservations before all provider calls complete. Provider calls, wallet deductions, transaction creation, and webhook completion happen across separate operations.
 
-This is normal for an asynchronous payment system, but the current implementation needs stronger recovery guarantees when the process crashes between steps.
+This is normal for an asynchronous payment system. The current implementation
+now detects stale execution through persisted heartbeats. It requeues only when
+no provider transaction exists and quarantines ambiguous post-dispatch work for
+reconciliation.
 
 **Evidence:** [`backend/src/jobs/process-payroll.job.ts`](backend/src/jobs/process-payroll.job.ts#L21-L65) and [`backend/src/jobs/process-payroll.job.ts`](backend/src/jobs/process-payroll.job.ts#L139-L220)
 
@@ -272,7 +301,8 @@ This is normal for an asynchronous payment system, but the current implementatio
 - Store an idempotency key before calling Paystack.
 - Avoid issuing a second provider transfer for a transaction whose provider request may already have succeeded.
 - Reconcile pending provider transfers periodically.
-- Add recovery for payrolls left in `PROCESSING` after a crash.
+- Add an automated reconciliation job for pending provider transfers.
+- Add an operator workflow to resolve quarantined payrolls before retry.
 
 ### High: temporary credentials are generated with weak randomness
 
@@ -385,12 +415,15 @@ Express API
         |
         +-- Prisma/PostgreSQL
         +-- Paystack REST API
-        +-- In-process scheduler
+        +-- Database-claimed in-process scheduler
         +-- In-memory payroll queue
         +-- In-app notifications/audit logs
 ```
 
-This is appropriate for a local pilot or controlled staging environment. The scheduler and queue are the main architectural boundary that must change before horizontally scaled production deployment.
+This is appropriate for a local pilot or controlled staging environment. The
+database claim prevents duplicate execution across horizontally scaled API
+instances, but the in-process scheduler and queue remain an availability
+boundary that should move to persistent worker infrastructure.
 
 ## Recommended implementation order
 
@@ -412,9 +445,9 @@ This is appropriate for a local pilot or controlled staging environment. The sch
 ### Phase 3: make payroll execution durable
 
 1. Replace the in-process queue with a persistent queue/worker.
-2. Add job claims and distributed locking.
+2. Preserve the implemented atomic database claim as the final execution guard.
 3. Add retry and dead-letter behavior.
-4. Recover stuck `PROCESSING` payrolls.
+4. Extend the implemented stuck-payroll recovery with provider reconciliation.
 5. Add end-to-end provider simulation tests.
 
 ### Phase 4: improve engineering quality

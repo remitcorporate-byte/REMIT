@@ -167,6 +167,10 @@ model Payroll {
   submittedAt   DateTime?
   approvedAt    DateTime?
   cancelledAt   DateTime?
+  processingStartedAt   DateTime?
+  processingHeartbeatAt DateTime?
+  reservationReleasedAt DateTime?
+  processingAttempt     Int           @default(0)
   failureReason String?
   status        PayrollStatus @default(DRAFT)
   totalAmount   Int           @default(0) // in kobo
@@ -185,6 +189,7 @@ model Payroll {
   @@index([approvedById])
   @@index([status])
   @@index([scheduledDate])
+  @@index([status, processingHeartbeatAt])
 }
 
 model PayrollEmployee {

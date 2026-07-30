@@ -235,7 +235,7 @@ export const getSystemStatus = async (req: Request, res: Response, next: NextFun
       data: {
         apiConnected: true,
         databaseConnected: true,
-        schedulerMode: 'in-process',
+        schedulerMode: 'database-claimed',
         paystackMode: process.env.USE_PAYSTACK_MOCK === 'true' ? 'mock' : 'live',
         frontendUrl: process.env.FRONTEND_URL || null,
       },
