@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import config from '../config';
 import { notificationService } from '../services/notification.service';
 import { getNextPaymentDate } from '../utils/dateHelpers';
@@ -8,16 +8,59 @@ import { auditService } from '../services/audit.service';
 
 const prisma = new PrismaClient();
 
+type PaystackWebhookRequest = Request & { rawBody?: Buffer };
+const transferTransactionInclude = {
+  employee: true,
+  payrollEmployee: {
+    include: {
+      payroll: true,
+      employee: true,
+    },
+  },
+} satisfies Prisma.TransactionInclude;
+
+type TransferTransaction = Prisma.TransactionGetPayload<{
+  include: typeof transferTransactionInclude;
+}>;
+
+type PaystackEventData = Record<string, unknown>;
+
+function eventData(value: unknown): PaystackEventData {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Paystack webhook data must be an object');
+  }
+  return value as PaystackEventData;
+}
+
+function optionalProviderString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function requiredProviderString(value: unknown, field: string): string {
+  const parsed = optionalProviderString(value);
+  if (!parsed) throw new Error(`Paystack webhook is missing ${field}`);
+  return parsed;
+}
+
 // @desc    Handle Paystack webhooks
 // @route   POST /api/v1/webhooks/paystack
-export const handlePaystackWebhook = async (req: Request, res: Response, _next: NextFunction) => {
-  // Verify signature
+export const handlePaystackWebhook = async (req: Request, res: Response, next: NextFunction) => {
+  const signature = req.headers['x-paystack-signature'];
+  const rawBody = (req as PaystackWebhookRequest).rawBody;
+
+  if (!rawBody || typeof signature !== 'string') {
+    res.status(400).json({ success: false, error: 'Invalid signature' });
+    return;
+  }
+
   const hash = crypto
     .createHmac('sha512', config.paystack.secretKey)
-    .update(JSON.stringify(req.body))
+    .update(rawBody)
     .digest('hex');
 
-  if (hash !== req.headers['x-paystack-signature']) {
+  const expected = Buffer.from(hash, 'hex');
+  const actual = Buffer.from(signature, 'hex');
+  if (expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) {
     res.status(400).json({ success: false, error: 'Invalid signature' });
     return;
   }
@@ -41,79 +84,94 @@ export const handlePaystackWebhook = async (req: Request, res: Response, _next: 
       default:
         console.log(`Unhandled webhook event: ${event.event}`);
     }
+
+    res.status(200).json({ success: true });
   } catch (error) {
     console.error('Webhook processing error:', error);
+    next(error);
   }
-
-  // Always return 200 to acknowledge receipt
-  res.status(200).json({ success: true });
 };
 
-async function handleChargeSuccess(data: any) {
-  const reference = data.reference;
+async function handleChargeSuccess(data: unknown) {
+  const payload = eventData(data);
+  const reference = requiredProviderString(payload.reference, 'reference');
 
   const transaction = await prisma.transaction.findUnique({
     where: { paystackReference: reference },
   });
 
   if (!transaction || transaction.status === 'SUCCESS') return;
+  if (transaction.type !== 'DEPOSIT') {
+    throw new Error(`Paystack charge reference ${reference} is not a deposit`);
+  }
 
-  await prisma.$transaction(async (tx: any) => {
-    await tx.transaction.update({
-      where: { id: transaction.id },
+  const providerAmount = Number(payload.amount);
+  const providerCurrency = String(payload.currency || '').toUpperCase();
+  if (!Number.isSafeInteger(providerAmount) || providerAmount !== transaction.amount) {
+    throw new Error(`Paystack charge amount mismatch for reference ${reference}`);
+  }
+  if (providerCurrency && providerCurrency !== 'NGN') {
+    throw new Error(`Paystack charge currency mismatch for reference ${reference}`);
+  }
+
+  const credited = await prisma.$transaction(async (tx) => {
+    const transition = await tx.transaction.updateMany({
+      where: {
+        id: transaction.id,
+        type: 'DEPOSIT',
+        status: { in: ['PENDING', 'FAILED'] },
+      },
       data: { status: 'SUCCESS' },
     });
 
-    if (transaction.type === 'DEPOSIT') {
+    if (transition.count === 1) {
       await tx.wallet.update({
         where: { id: transaction.walletId },
         data: { balance: { increment: transaction.amount } },
       });
     }
+
+    return transition.count === 1;
   });
 
-  await notificationService.notifyCompanyAdmins({
-    companyId: transaction.companyId,
-    type: 'DEPOSIT_SUCCESS',
-    title: 'Deposit Successful',
-    message: `Your deposit of ${transaction.amount / 100} NGN has been confirmed.`,
-  });
+  if (!credited) return;
 
-  await auditService.record({
-    companyId: transaction.companyId,
-    action: 'DEPOSIT_WEBHOOK_SUCCESS',
-    entityType: 'Transaction',
-    entityId: transaction.id,
-    metadata: { reference },
-  });
+  await Promise.all([
+    notificationService.notifyCompanyAdmins({
+      companyId: transaction.companyId,
+      type: 'DEPOSIT_SUCCESS',
+      title: 'Deposit Successful',
+      message: `Your deposit of ${transaction.amount / 100} NGN has been confirmed.`,
+    }),
+    auditService.record({
+      companyId: transaction.companyId,
+      action: 'DEPOSIT_WEBHOOK_SUCCESS',
+      entityType: 'Transaction',
+      entityId: transaction.id,
+      metadata: { reference, amount: transaction.amount },
+    }),
+  ]);
 }
 
-async function handleTransferSuccess(data: any) {
-  const reference = data.reference;
+async function handleTransferSuccess(data: unknown) {
+  const payload = eventData(data);
+  const reference = optionalProviderString(payload.reference);
+  const transferCode = optionalProviderString(payload.transfer_code);
 
-  const transaction = await prisma.transaction.findUnique({
-    where: { paystackReference: reference },
-    include: {
-      employee: true,
-      payrollEmployee: {
-        include: {
-          payroll: true,
-          employee: true,
-        },
-      },
-    },
-  });
+  const transaction = await findTransferTransaction(reference, transferCode);
 
   if (!transaction || transaction.status !== 'PENDING') return;
 
-  await prisma.$transaction(async (tx: any) => {
-    await tx.transaction.update({
-      where: { id: transaction.id },
+  const transitioned = await prisma.$transaction(async (tx) => {
+    const transition = await tx.transaction.updateMany({
+      where: { id: transaction.id, status: 'PENDING' },
       data: {
         status: 'SUCCESS',
-        paystackTransferId: data.transfer_code,
+        ...(transferCode && { paystackTransferId: transferCode }),
       },
     });
+
+    if (transition.count !== 1) return false;
 
     if (transaction.payrollEmployeeId) {
       await tx.payrollEmployee.update({
@@ -133,7 +191,11 @@ async function handleTransferSuccess(data: any) {
         },
       });
     }
+
+    return true;
   });
+
+  if (!transitioned) return;
 
   if (transaction.payrollEmployee?.payrollId) {
     await recomputePayrollStatus(transaction.payrollEmployee.payrollId);
@@ -144,25 +206,26 @@ async function handleTransferSuccess(data: any) {
     action: 'TRANSFER_WEBHOOK_SUCCESS',
     entityType: 'Transaction',
     entityId: transaction.id,
-    metadata: { reference, payrollEmployeeId: transaction.payrollEmployeeId },
+    metadata: { reference, transferCode, payrollEmployeeId: transaction.payrollEmployeeId },
   });
 }
 
-async function handleTransferFailed(data: any) {
-  const reference = data.reference;
+async function handleTransferFailed(data: unknown) {
+  const payload = eventData(data);
+  const reference = optionalProviderString(payload.reference);
+  const transferCode = optionalProviderString(payload.transfer_code);
 
-  const transaction = await prisma.transaction.findUnique({
-    where: { paystackReference: reference },
-    include: { payrollEmployee: true },
-  });
+  const transaction = await findTransferTransaction(reference, transferCode);
 
   if (!transaction || transaction.status !== 'PENDING') return;
 
-  await prisma.$transaction(async (tx: any) => {
-    await tx.transaction.update({
-      where: { id: transaction.id },
+  const transitioned = await prisma.$transaction(async (tx) => {
+    const transition = await tx.transaction.updateMany({
+      where: { id: transaction.id, status: 'PENDING' },
       data: { status: 'FAILED' },
     });
+
+    if (transition.count !== 1) return false;
 
     // Refund wallet
     if (transaction.type === 'PAYROLL_DEBIT') {
@@ -191,7 +254,11 @@ async function handleTransferFailed(data: any) {
         data: { status: 'FAILED' },
       });
     }
+
+    return true;
   });
+
+  if (!transitioned) return;
 
   if (transaction.payrollEmployee?.payrollId) {
     await recomputePayrollStatus(transaction.payrollEmployee.payrollId);
@@ -209,25 +276,32 @@ async function handleTransferFailed(data: any) {
     action: 'TRANSFER_WEBHOOK_FAILED',
     entityType: 'Transaction',
     entityId: transaction.id,
-    metadata: { reference, payrollEmployeeId: transaction.payrollEmployeeId },
+    metadata: { reference, transferCode, payrollEmployeeId: transaction.payrollEmployeeId },
   });
 }
 
-async function handleTransferReversed(data: any) {
-  const reference = data.reference;
+async function handleTransferReversed(data: unknown) {
+  const payload = eventData(data);
+  const reference = optionalProviderString(payload.reference);
+  const transferCode = optionalProviderString(payload.transfer_code);
 
-  const transaction = await prisma.transaction.findUnique({
-    where: { paystackReference: reference },
-    include: { payrollEmployee: true },
-  });
+  const transaction = await findTransferTransaction(reference, transferCode);
 
-  if (!transaction || transaction.status !== 'PENDING') return;
+  if (!transaction || transaction.status === 'REVERSED' || transaction.status === 'FAILED') return;
 
-  await prisma.$transaction(async (tx: any) => {
-    await tx.transaction.update({
-      where: { id: transaction.id },
-      data: { status: 'REVERSED' },
+  const transitioned = await prisma.$transaction(async (tx) => {
+    const transition = await tx.transaction.updateMany({
+      where: {
+        id: transaction.id,
+        status: { in: ['PENDING', 'SUCCESS'] },
+      },
+      data: {
+        status: 'REVERSED',
+        ...(transferCode && { paystackTransferId: transferCode }),
+      },
     });
+
+    if (transition.count !== 1) return false;
 
     // Refund wallet
     await tx.wallet.update({
@@ -253,7 +327,11 @@ async function handleTransferReversed(data: any) {
         data: { status: 'REVERSED' },
       });
     }
+
+    return true;
   });
+
+  if (!transitioned) return;
 
   if (transaction.payrollEmployee?.payrollId) {
     await recomputePayrollStatus(transaction.payrollEmployee.payrollId);
@@ -271,7 +349,37 @@ async function handleTransferReversed(data: any) {
     action: 'TRANSFER_WEBHOOK_REVERSED',
     entityType: 'Transaction',
     entityId: transaction.id,
-    metadata: { reference, payrollEmployeeId: transaction.payrollEmployeeId },
+    metadata: { reference, transferCode, payrollEmployeeId: transaction.payrollEmployeeId },
+  });
+}
+
+async function findTransferTransaction(
+  reference?: string,
+  transferCode?: string
+): Promise<TransferTransaction | null> {
+  if (reference) {
+    const transaction = await prisma.transaction.findUnique({
+      where: { paystackReference: reference },
+      include: transferTransactionInclude,
+    });
+
+    if (
+      transaction &&
+      transferCode &&
+      transaction.paystackTransferId &&
+      transaction.paystackTransferId !== transferCode
+    ) {
+      throw new Error(`Paystack transfer code mismatch for reference ${reference}`);
+    }
+
+    if (transaction) return transaction;
+  }
+
+  if (!transferCode) return null;
+
+  return prisma.transaction.findUnique({
+    where: { paystackTransferId: transferCode },
+    include: transferTransactionInclude,
   });
 }
 

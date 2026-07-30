@@ -1,10 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import {
+  Prisma,
+  PrismaClient,
+  TransactionStatus,
+  TransactionType,
+} from '@prisma/client';
 import { AppError } from '../middleware/errorHandler';
 import { paystackService } from '../services/paystack.service';
 import { generateReference, getPaginationParams, paginatedResponse } from '../utils/formatters';
 import config from '../config';
 import { auditService } from '../services/audit.service';
+import { notificationService } from '../services/notification.service';
 
 const prisma = new PrismaClient();
 
@@ -45,9 +51,9 @@ export const initializeDeposit = async (req: Request, res: Response, next: NextF
     }
 
     const { amount } = req.body; // amount in kobo
-    if (!amount || amount < 10000) {
+    if (!Number.isSafeInteger(amount) || amount < 10000) {
       // Minimum 100 NGN (10000 kobo)
-      throw new AppError('Minimum deposit is 100 NGN', 400);
+      throw new AppError('Deposit amount must be a whole number of kobo and at least 100 NGN', 400);
     }
 
     const reference = generateReference('DEP');
@@ -132,57 +138,110 @@ export const verifyDeposit = async (req: Request, res: Response, next: NextFunct
       throw new AppError('Not authorized', 403);
     }
 
+    if (transaction.type !== 'DEPOSIT') {
+      throw new AppError('Reference is not a wallet deposit', 400);
+    }
+
     if (transaction.status === 'SUCCESS') {
+      const wallet = await prisma.wallet.findUnique({
+        where: { companyId: req.user.companyId },
+        select: { balance: true },
+      });
+
       return res.json({
         success: true,
         message: 'Transaction already verified',
-        data: transaction,
+        data: {
+          transaction,
+          newBalance: wallet?.balance || 0,
+        },
       });
     }
 
     const verification = await paystackService.verifyTransaction(reference);
-    const verificationStatus = verification.data.status;
+    const verificationStatus = String(verification.data.status || '').toLowerCase();
 
     if (verificationStatus === 'success') {
-      // Update transaction and wallet in a transaction
-      const result = await prisma.$transaction(async (tx: any) => {
-        const updatedTransaction = await tx.transaction.update({
-          where: { id: transaction.id },
+      if (process.env.USE_PAYSTACK_MOCK !== 'true') {
+        const verifiedAmount = Number(verification.data.amount);
+        const verifiedCurrency = String(verification.data.currency || '').toUpperCase();
+
+        if (!Number.isSafeInteger(verifiedAmount) || verifiedAmount !== transaction.amount) {
+          throw new AppError('Verified payment amount does not match the deposit', 400);
+        }
+        if (verifiedCurrency && verifiedCurrency !== 'NGN') {
+          throw new AppError('Verified payment currency does not match the wallet', 400);
+        }
+      }
+
+      // Only the request that atomically transitions this deposit may credit the wallet.
+      const result = await prisma.$transaction(async (tx) => {
+        const transition = await tx.transaction.updateMany({
+          where: {
+            id: transaction.id,
+            type: 'DEPOSIT',
+            status: { in: ['PENDING', 'FAILED'] },
+          },
           data: { status: 'SUCCESS' },
         });
 
-        const updatedWallet = await tx.wallet.update({
-          where: { companyId: req.user!.companyId! },
-          data: { balance: { increment: transaction.amount } },
+        const updatedWallet = transition.count === 1
+          ? await tx.wallet.update({
+              where: { companyId: req.user!.companyId! },
+              data: { balance: { increment: transaction.amount } },
+            })
+          : await tx.wallet.findUnique({
+              where: { companyId: req.user!.companyId! },
+            });
+
+        const updatedTransaction = await tx.transaction.findUnique({
+          where: { id: transaction.id },
         });
 
-        return { transaction: updatedTransaction, wallet: updatedWallet };
+        return {
+          credited: transition.count === 1,
+          transaction: updatedTransaction,
+          wallet: updatedWallet,
+        };
       });
 
-      await auditService.record({
-        companyId: req.user!.companyId!,
-        userId: req.user!.id,
-        action: 'DEPOSIT_VERIFIED',
-        entityType: 'Transaction',
-        entityId: result.transaction.id,
-        metadata: { reference, amount: transaction.amount },
-      });
+      if (result.credited) {
+        await Promise.all([
+          auditService.record({
+            companyId: req.user!.companyId!,
+            userId: req.user!.id,
+            action: 'DEPOSIT_VERIFIED',
+            entityType: 'Transaction',
+            entityId: transaction.id,
+            metadata: { reference, amount: transaction.amount },
+          }),
+          notificationService.notifyCompanyAdmins({
+            companyId: req.user!.companyId!,
+            type: 'DEPOSIT_SUCCESS',
+            title: 'Deposit Successful',
+            message: `Your deposit of ${transaction.amount / 100} NGN has been confirmed.`,
+          }),
+        ]);
+      }
 
       res.json({
         success: true,
-        message: 'Deposit verified successfully',
+        message: result.credited ? 'Deposit verified successfully' : 'Transaction already verified',
         data: {
           transaction: result.transaction,
-          newBalance: result.wallet.balance,
+          newBalance: result.wallet?.balance || 0,
         },
       });
     } else {
-      await prisma.transaction.update({
-        where: { id: transaction.id },
-        data: { status: 'FAILED' },
-      });
+      const terminalFailureStatuses = new Set(['abandoned', 'failed', 'reversed']);
+      if (terminalFailureStatuses.has(verificationStatus)) {
+        await prisma.transaction.updateMany({
+          where: { id: transaction.id, status: 'PENDING' },
+          data: { status: 'FAILED' },
+        });
+      }
 
-      throw new AppError('Payment verification failed', 400);
+      throw new AppError(`Payment is not complete (${verificationStatus || 'unknown'})`, 400);
     }
   } catch (error) {
     next(error);
@@ -202,13 +261,20 @@ export const getTransactions = async (req: Request, res: Response, next: NextFun
       Number(req.query.limit) || 10
     );
 
-    const type = req.query.type as string | undefined;
-    const status = req.query.status as string | undefined;
+    const type = typeof req.query.type === 'string' ? req.query.type : undefined;
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
 
-    const where = {
+    if (type && !Object.values(TransactionType).includes(type as TransactionType)) {
+      throw new AppError('Invalid transaction type filter', 400);
+    }
+    if (status && !Object.values(TransactionStatus).includes(status as TransactionStatus)) {
+      throw new AppError('Invalid transaction status filter', 400);
+    }
+
+    const where: Prisma.TransactionWhereInput = {
       companyId: req.user.companyId,
-      ...(type && { type: type as any }),
-      ...(status && { status: status as any }),
+      ...(type && { type: type as TransactionType }),
+      ...(status && { status: status as TransactionStatus }),
     };
 
     const [transactions, total] = await Promise.all([

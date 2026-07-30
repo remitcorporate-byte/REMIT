@@ -115,13 +115,15 @@ async function runTests() {
 
         // Phase 5: Payroll
         console.log('\n--- Phase 5: Payroll Operations ---');
-        const payrollRes = await axios.post(`${BASE_URL}/payrolls/schedule`, {
+        const payrollRes = await axios.post(`${BASE_URL}/payrolls/drafts`, {
             scheduledDate: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
             employeeIds: [employeeId],
             note: 'Monthly salary'
         }, authHeaders());
         payrollId = payrollRes.data.data.id;
-        console.log('✅ POST /payrolls/schedule: Success');
+        await axios.put(`${BASE_URL}/payrolls/${payrollId}/submit`, {}, authHeaders());
+        await axios.put(`${BASE_URL}/payrolls/${payrollId}/approve`, {}, authHeaders());
+        console.log('✅ Draft/submit/approve payroll workflow: Success');
 
         await axios.get(`${BASE_URL}/payrolls`, authHeaders());
         console.log('✅ GET /payrolls: Success');

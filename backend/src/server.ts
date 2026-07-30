@@ -20,8 +20,13 @@ app.use(cors({
       : false,
 }));
 
-// Body parsing - raw body needed for webhook signature verification
-app.use('/api/v1/webhooks', express.json({ limit: '1mb' }));
+// Preserve the raw JSON payload for Paystack HMAC verification.
+app.use('/api/v1/webhooks', express.json({
+  limit: '1mb',
+  verify: (req, _res, buf) => {
+    (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+  },
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

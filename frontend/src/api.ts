@@ -164,8 +164,6 @@ export const api = {
   deleteEmployee: (id: string) => request<ApiResponse<unknown>>(`/employees/${id}`, { method: 'DELETE' }),
   payrolls: (status = '') =>
     request<Paginated<Payroll>>(`/payrolls?limit=100${status ? `&status=${status}` : ''}`).then((r) => r.data),
-  schedulePayroll: (input: { scheduledDate: string; employeeIds: string[]; note?: string }) =>
-    request<ApiResponse<Payroll>>('/payrolls/schedule', { method: 'POST', body: JSON.stringify(input) }).then((r) => r.data),
   createPayrollDraft: (input: { scheduledDate: string; employeeIds: string[]; note?: string }) =>
     request<ApiResponse<Payroll>>('/payrolls/drafts', { method: 'POST', body: JSON.stringify(input) }).then((r) => r.data),
   updatePayrollDraft: (id: string, input: { scheduledDate?: string; employeeIds?: string[]; note?: string }) =>

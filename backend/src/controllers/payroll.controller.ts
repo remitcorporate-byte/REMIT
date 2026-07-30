@@ -154,50 +154,16 @@ export const schedulePayroll = async (req: Request, res: Response, next: NextFun
   try {
     if (!req.user?.companyId) throw new AppError('No company associated with this user', 400);
 
-    const body = payrollInputSchema.parse(req.body);
-    const { employees, totalAmount } = await buildPayrollData(req.user.companyId, body.employeeIds);
-    const scheduledDate = new Date(body.scheduledDate);
-
-    await reservePayrollFunds({ id: '', companyId: req.user.companyId, totalAmount });
-
-    const payroll = await prisma.payroll.create({
-      data: {
-        companyId: req.user.companyId,
-        createdById: req.user.id,
-        approvedById: req.user.id,
-        scheduledDate,
-        submittedAt: new Date(),
-        approvedAt: new Date(),
-        status: 'SCHEDULED',
-        totalAmount,
-        employeeCount: employees.length,
-        note: body.note,
-        payrollEmployees: {
-          create: employees.map((employee) => ({
-            employeeId: employee.id,
-            amount: employee.salary,
-          })),
-        },
+    res.status(410).json({
+      success: false,
+      error: 'Direct payroll scheduling has been removed. Create a draft, submit it, and approve it through the controlled workflow.',
+      replacement: {
+        createDraft: 'POST /api/v1/payrolls/drafts',
+        submit: 'PUT /api/v1/payrolls/:id/submit',
+        approve: 'PUT /api/v1/payrolls/:id/approve',
       },
-      include: payrollInclude(),
     });
-
-    await auditService.record({
-      companyId: req.user.companyId,
-      userId: req.user.id,
-      action: 'PAYROLL_CREATED_AND_APPROVED',
-      entityType: 'Payroll',
-      entityId: payroll.id,
-      metadata: { totalAmount, employeeCount: employees.length },
-    });
-
-    if (scheduledDate <= new Date()) {
-      await payrollQueue.add('process-payroll', { payrollId: payroll.id, companyId: req.user.companyId }, { jobId: payroll.id });
-    }
-
-    res.status(201).json({ success: true, data: payroll });
   } catch (error) {
-    if (error instanceof z.ZodError) return next(new AppError(error.errors.map((e) => e.message).join(', '), 400));
     next(error);
   }
 };

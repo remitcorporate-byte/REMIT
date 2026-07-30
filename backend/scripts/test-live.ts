@@ -67,7 +67,7 @@ async function runLiveTest() {
 
         // 4. Schedule Payroll
         console.log('\n--- Step 4: Schedule Payroll Disbursement ---');
-        const payrollRes = await axios.post(`${API_URL}/payrolls/schedule`, {
+        const payrollRes = await axios.post(`${API_URL}/payrolls/drafts`, {
             scheduledDate: new Date().toISOString(),
             employeeIds: [employeeId],
             note: 'Live Verification Run'
@@ -75,6 +75,12 @@ async function runLiveTest() {
             headers: { Authorization: `Bearer ${authToken}` }
         });
         payrollId = payrollRes.data.data.id;
+        await axios.put(`${API_URL}/payrolls/${payrollId}/submit`, {}, {
+            headers: { Authorization: `Bearer ${authToken}` }
+        });
+        await axios.put(`${API_URL}/payrolls/${payrollId}/approve`, {}, {
+            headers: { Authorization: `Bearer ${authToken}` }
+        });
         console.log(`✅ Payroll Scheduled: ${payrollId}`);
 
         // 5. Polling for completion

@@ -62,12 +62,14 @@ async function runE2ETest() {
 
         // 4. Schedule Payroll
         console.log('\n--- Step 4: Schedule Payroll Disbursement ---');
-        const payrollRes = await axios.post(`${BASE_URL}/payrolls/schedule`, {
+        const payrollRes = await axios.post(`${BASE_URL}/payrolls/drafts`, {
             scheduledDate: new Date().toISOString(), // Immediate
             employeeIds: [employeeId],
             note: 'E2E Automated Test'
         }, authHeaders());
         payrollId = payrollRes.data.data.id;
+        await axios.put(`${BASE_URL}/payrolls/${payrollId}/submit`, {}, authHeaders());
+        await axios.put(`${BASE_URL}/payrolls/${payrollId}/approve`, {}, authHeaders());
         console.log(`✅ Payroll Scheduled: ${payrollId}`);
 
         // 5. Poll for Automated Disbursement (processed by QueueMock)

@@ -161,12 +161,20 @@ export async function processPayroll(data: ProcessPayrollData) {
         // Initiate Paystack transfer
         console.log(`[ProcessPayroll] Sending Paystack transfer request...`);
         try {
-          await paystackService.initiateTransfer({
+          const transferResponse = await paystackService.initiateTransfer({
             amount: pe.amount,
             recipientCode,
             reason: `Salary payment - ${employee.firstName} ${employee.lastName}`,
             reference,
           });
+
+          const transferCode = transferResponse?.data?.transfer_code;
+          if (transferCode) {
+            await prisma.transaction.updateMany({
+              where: { paystackReference: reference, status: 'PENDING' },
+              data: { paystackTransferId: transferCode },
+            });
+          }
 
           if (process.env.USE_PAYSTACK_MOCK === 'true') {
             await prisma.$transaction(async (tx: any) => {
