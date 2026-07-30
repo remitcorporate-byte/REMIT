@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { AppError } from '../middleware/errorHandler';
+import { payrollQueue } from '../queues/payroll.queue';
 
 const prisma = new PrismaClient();
 
@@ -228,14 +229,22 @@ export const getSystemStatus = async (req: Request, res: Response, next: NextFun
       throw new AppError('No company associated with this user', 400);
     }
 
-    await prisma.$queryRaw`SELECT 1`;
+    const [, queue] = await Promise.all([
+      prisma.$queryRaw`SELECT 1`,
+      payrollQueue.health(),
+    ]);
 
     res.json({
       success: true,
       data: {
         apiConnected: true,
         databaseConnected: true,
-        schedulerMode: 'database-claimed',
+        schedulerMode: `database-claimed:${queue.mode}`,
+        queueMode: queue.mode,
+        queueConnected: queue.connected,
+        queueWaiting: queue.waiting ?? null,
+        queueActive: queue.active ?? null,
+        queueFailed: queue.failed ?? null,
         paystackMode: process.env.USE_PAYSTACK_MOCK === 'true' ? 'mock' : 'live',
         frontendUrl: process.env.FRONTEND_URL || null,
       },

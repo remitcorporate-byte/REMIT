@@ -8,20 +8,20 @@ import {
   listBanks,
   verifyBank,
 } from '../controllers/employee.controller';
-import { protect, authorize } from '../middleware/auth';
+import { protect, authorizePermission } from '../middleware/auth';
 
 const router = Router();
 
 router.use(protect);
 
-router.get('/banks', authorize('OWNER', 'ADMIN', 'FINANCE'), listBanks);
-router.post('/verify-bank', authorize('OWNER', 'ADMIN', 'FINANCE'), verifyBank);
+router.get('/banks', authorizePermission('bank.verify'), listBanks);
+router.post('/verify-bank', authorizePermission('bank.verify'), verifyBank);
 router.route('/')
-  .get(authorize('OWNER', 'ADMIN', 'FINANCE', 'VIEWER'), getEmployees)
-  .post(authorize('OWNER', 'ADMIN'), createEmployee);
+  .get(authorizePermission('employee.read'), getEmployees)
+  .post(authorizePermission('employee.manage'), createEmployee);
 router.route('/:id')
-  .get(authorize('OWNER', 'ADMIN', 'FINANCE', 'VIEWER'), getEmployee)
-  .put(authorize('OWNER', 'ADMIN'), updateEmployee)
-  .delete(authorize('OWNER', 'ADMIN'), deleteEmployee);
+  .get(authorizePermission('employee.read'), getEmployee)
+  .put(authorizePermission('employee.manage'), updateEmployee)
+  .delete(authorizePermission('employee.manage'), deleteEmployee);
 
 export default router;

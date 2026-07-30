@@ -5,7 +5,8 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const env = process.env.NODE_ENV || 'development';
 const isProduction = env === 'production';
-const requiredProductionVars = ['DATABASE_URL', 'JWT_SECRET', 'PAYSTACK_SECRET_KEY'];
+const requiredRuntimeVars = ['DATABASE_URL', 'JWT_SECRET', 'PAYSTACK_SECRET_KEY'];
+const requiredProductionVars = [...requiredRuntimeVars, 'REDIS_URL'];
 
 for (const varName of requiredProductionVars) {
   if (isProduction && !process.env[varName]) {
@@ -14,10 +15,13 @@ for (const varName of requiredProductionVars) {
 }
 
 if (!isProduction) {
-  for (const varName of requiredProductionVars) {
+  for (const varName of requiredRuntimeVars) {
     if (!process.env[varName]) {
       console.warn(`Warning: ${varName} is not set in environment variables`);
     }
+  }
+  if (process.env.PAYROLL_QUEUE_MODE === 'redis' && !process.env.REDIS_URL) {
+    console.warn('Warning: REDIS_URL is required when PAYROLL_QUEUE_MODE is redis');
   }
 }
 

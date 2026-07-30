@@ -222,6 +222,10 @@ model Transaction {
   description        String?
   paystackReference  String?           @unique
   paystackTransferId String?           @unique
+  reconciliationStartedAt DateTime?
+  reconciliationCheckedAt DateTime?
+  reconciliationAttempt   Int          @default(0)
+  reconciliationError     String?
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
@@ -235,6 +239,7 @@ model Transaction {
   @@index([payrollEmployeeId])
   @@index([status])
   @@index([type])
+  @@index([type, status, reconciliationCheckedAt])
 }
 
 model Notification {

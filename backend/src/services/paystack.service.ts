@@ -172,6 +172,37 @@ class PaystackService {
     return data;
   }
 
+  async verifyTransfer(reference: string) {
+    if (this.useMock) {
+      const normalizedReference = reference.toLowerCase();
+      const status = normalizedReference.includes('mock_failed')
+        ? 'failed'
+        : normalizedReference.includes('mock_reversed')
+          ? 'reversed'
+          : normalizedReference.includes('mock_pending')
+            ? 'pending'
+            : 'success';
+
+      console.log(`[PaystackMock] Verifying transfer ${reference}: ${status}`);
+      return {
+        status: true,
+        message: 'Transfer retrieved',
+        data: {
+          reference,
+          transfer_code: `TRF_${reference}`,
+          status,
+          currency: 'NGN',
+          amount: normalizedReference.includes('mock_mismatch') ? 1 : undefined,
+        },
+      };
+    }
+
+    const { data } = await this.client.get(
+      `/transfer/verify/${encodeURIComponent(reference)}`
+    );
+    return data;
+  }
+
   // Initiate bulk transfer
   async initiateBulkTransfer(transfers: Array<{
     amount: number;

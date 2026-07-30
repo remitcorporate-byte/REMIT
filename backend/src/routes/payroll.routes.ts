@@ -11,21 +11,21 @@ import {
   retryPayroll,
   exportPayroll,
 } from '../controllers/payroll.controller';
-import { protect, authorize } from '../middleware/auth';
+import { protect, authorizePermission } from '../middleware/auth';
 
 const router = Router();
 
 router.use(protect);
 
-router.post('/schedule', authorize('OWNER', 'ADMIN', 'FINANCE'), schedulePayroll);
-router.post('/drafts', authorize('OWNER', 'ADMIN', 'FINANCE'), createPayrollDraft);
-router.get('/', authorize('OWNER', 'ADMIN', 'FINANCE', 'VIEWER'), getPayrolls);
-router.get('/:id/export', authorize('OWNER', 'ADMIN', 'FINANCE', 'VIEWER'), exportPayroll);
-router.get('/:id', authorize('OWNER', 'ADMIN', 'FINANCE', 'VIEWER'), getPayroll);
-router.put('/:id', authorize('OWNER', 'ADMIN', 'FINANCE'), updatePayrollDraft);
-router.put('/:id/submit', authorize('OWNER', 'ADMIN', 'FINANCE'), submitPayroll);
-router.put('/:id/approve', authorize('OWNER', 'ADMIN', 'FINANCE'), approvePayroll);
-router.put('/:id/cancel', authorize('OWNER', 'ADMIN', 'FINANCE'), cancelPayroll);
-router.put('/:id/retry', authorize('OWNER', 'ADMIN', 'FINANCE'), retryPayroll);
+router.post('/schedule', authorizePermission('payroll.create'), schedulePayroll);
+router.post('/drafts', authorizePermission('payroll.create'), createPayrollDraft);
+router.get('/', authorizePermission('payroll.read'), getPayrolls);
+router.get('/:id/export', authorizePermission('payroll.export'), exportPayroll);
+router.get('/:id', authorizePermission('payroll.read'), getPayroll);
+router.put('/:id', authorizePermission('payroll.update'), updatePayrollDraft);
+router.put('/:id/submit', authorizePermission('payroll.submit'), submitPayroll);
+router.put('/:id/approve', authorizePermission('payroll.approve'), approvePayroll);
+router.put('/:id/cancel', authorizePermission('payroll.cancel'), cancelPayroll);
+router.put('/:id/retry', authorizePermission('payroll.retry'), retryPayroll);
 
 export default router;

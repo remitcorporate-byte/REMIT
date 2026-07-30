@@ -5,16 +5,15 @@ import {
   verifyDeposit,
   getTransactions,
 } from '../controllers/wallet.controller';
-import { protect, authorize } from '../middleware/auth';
+import { protect, authorizePermission } from '../middleware/auth';
 
 const router = Router();
 
 router.use(protect);
-router.use(authorize('OWNER', 'ADMIN', 'FINANCE'));
 
-router.get('/', getWallet);
-router.post('/deposit', initializeDeposit);
-router.get('/verify/:reference', verifyDeposit);
-router.get('/transactions', getTransactions);
+router.get('/', authorizePermission('wallet.read'), getWallet);
+router.post('/deposit', authorizePermission('wallet.fund'), initializeDeposit);
+router.get('/verify/:reference', authorizePermission('wallet.fund'), verifyDeposit);
+router.get('/transactions', authorizePermission('transaction.read'), getTransactions);
 
 export default router;

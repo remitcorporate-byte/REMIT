@@ -4,11 +4,12 @@ import {
   markAsRead,
   markAllAsRead,
 } from '../controllers/notification.controller';
-import { protect } from '../middleware/auth';
+import { protect, authorizePermission } from '../middleware/auth';
 
 const router = Router();
 
 router.use(protect);
+router.use(authorizePermission('notification.read'));
 
 router.get('/', getNotifications);
 router.put('/read-all', markAllAsRead);

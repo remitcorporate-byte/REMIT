@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { PrismaClient } from '@prisma/client';
 import authRoutes from './auth.routes';
 import companyRoutes from './company.routes';
 import employeeRoutes from './employee.routes';
@@ -8,14 +9,48 @@ import transactionRoutes from './transaction.routes';
 import notificationRoutes from './notification.routes';
 import webhookRoutes from './webhook.routes';
 import teamRoutes from './team.routes';
+import { payrollQueue } from '../queues/payroll.queue';
 
 const router = Router();
+const prisma = new PrismaClient();
 
 // Health check
 router.get('/health', (_req: Request, res: Response) => {
   res.json({
     success: true,
     message: 'REMIT API is running',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Production readiness check: do not accept traffic unless both durable
+// dependencies needed for payroll processing are reachable.
+router.get('/ready', async (_req: Request, res: Response) => {
+  const databaseStartedAt = Date.now();
+  let databaseConnected = false;
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    databaseConnected = true;
+  } catch (error) {
+    console.error(
+      '[Readiness] Database check failed:',
+      error instanceof Error ? error.message : error
+    );
+  }
+
+  const queue = await payrollQueue.health();
+  const ready = databaseConnected && queue.connected;
+
+  res.status(ready ? 200 : 503).json({
+    success: ready,
+    data: {
+      database: {
+        connected: databaseConnected,
+        responseTimeMs: Date.now() - databaseStartedAt,
+      },
+      queue,
+    },
     timestamp: new Date().toISOString(),
   });
 });

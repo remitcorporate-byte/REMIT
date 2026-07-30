@@ -1,11 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Role } from '@prisma/client';
 import config from '../config';
 import { AppError } from './errorHandler';
+import { Permission, roleHasPermission } from '../auth/permissions';
 
 const prisma = new PrismaClient();
-type Role = 'OWNER' | 'ADMIN' | 'FINANCE' | 'VIEWER' | 'EMPLOYEE';
 
 interface JwtPayload {
   id: string;
@@ -83,6 +83,18 @@ export const authorize = (...roles: Role[]) => {
       return next(new AppError('Not authorized', 401));
     }
     if (!roles.includes(req.user.role)) {
+      return next(new AppError('Not authorized for this action', 403));
+    }
+    next();
+  };
+};
+
+export const authorizePermission = (permission: Permission) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return next(new AppError('Not authorized', 401));
+    }
+    if (!roleHasPermission(req.user.role, permission)) {
       return next(new AppError('Not authorized for this action', 403));
     }
     next();

@@ -1,0 +1,88 @@
+services:
+  - type: web
+    name: remit-api
+    runtime: node
+    plan: starter
+    region: frankfurt
+    rootDir: backend
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm prisma generate && pnpm build
+    preDeployCommand: pnpm exec prisma migrate deploy
+    startCommand: pnpm start
+    healthCheckPath: /api/v1/ready
+    maxShutdownDelaySeconds: 60
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22
+      - key: PAYROLL_QUEUE_MODE
+        value: redis
+      - key: FRONTEND_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+
+  - type: worker
+    name: remit-payroll-worker
+    runtime: node
+    plan: starter
+    region: frankfurt
+    rootDir: backend
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm prisma generate && pnpm build
+    startCommand: pnpm worker:payroll
+    maxShutdownDelaySeconds: 300
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22
+      - key: PAYROLL_QUEUE_MODE
+        value: redis
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+
+  - type: web
+    name: remit-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    staticPublishPath: dist
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin

@@ -7,17 +7,17 @@ import {
   getSystemStatus,
   getAuditLog,
 } from '../controllers/company.controller';
-import { protect, authorize } from '../middleware/auth';
+import { protect, authorizePermission } from '../middleware/auth';
 
 const router = Router();
 
 router.use(protect);
 
-router.get('/', getCompany);
-router.put('/', authorize('OWNER', 'ADMIN'), updateCompany);
-router.get('/dashboard', getDashboard);
-router.get('/stats', getAdvancedStats);
-router.get('/system-status', getSystemStatus);
-router.get('/audit-log', authorize('OWNER', 'ADMIN'), getAuditLog);
+router.get('/', authorizePermission('company.read'), getCompany);
+router.put('/', authorizePermission('company.manage'), updateCompany);
+router.get('/dashboard', authorizePermission('dashboard.read'), getDashboard);
+router.get('/stats', authorizePermission('dashboard.read'), getAdvancedStats);
+router.get('/system-status', authorizePermission('system.read'), getSystemStatus);
+router.get('/audit-log', authorizePermission('audit.read'), getAuditLog);
 
 export default router;

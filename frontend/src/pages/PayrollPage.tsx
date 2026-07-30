@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { api, authStore, formatNaira } from '../api'
+import { api, formatNaira } from '../api'
+import { Can } from '../auth/Can'
 import { PayrollRow } from '../components/PayrollRow'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -11,7 +12,6 @@ import { useLoad } from '../hooks/useLoad'
 import type { Payroll } from '../types'
 
 export function PayrollPage() {
-  const canRunPayroll = ['OWNER', 'ADMIN', 'FINANCE'].includes(authStore.user()?.role || '')
   const [status, setStatus] = useState('')
   const [selected, setSelected] = useState<string[]>([])
   const [date, setDate] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 16))
@@ -42,7 +42,14 @@ export function PayrollPage() {
   return (
     <PageState loading={payrolls.loading} error={payrolls.error} onRetry={payrolls.reload}>
       <div className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
-        {canRunPayroll ? (
+        <Can
+          permission="payroll.create"
+          fallback={(
+            <Card title="Payroll access" subtitle="This account can review payroll activity but cannot create or approve payroll runs">
+              <Notice title="Read-only access">Your assigned permissions do not allow payroll creation.</Notice>
+            </Card>
+          )}
+        >
           <Card title="Create payroll draft" subtitle="Select employees, review totals, then submit for approval">
             <div className="mb-4 grid max-h-72 gap-2 overflow-auto">
               {(employees.data || []).map((employee) => (
@@ -72,11 +79,7 @@ export function PayrollPage() {
             <button className="btn-primary" disabled={!selected.length} onClick={createDraft}>Create draft</button>
             {message && <div className="mt-4"><Notice title="Payroll status">{message}</Notice></div>}
           </Card>
-        ) : (
-          <Card title="Payroll access" subtitle="This account can review payroll activity but cannot create or approve payroll runs">
-            <Notice title="Read-only role">Ask the company owner to grant Finance or Admin access before running payroll.</Notice>
-          </Card>
-        )}
+        </Can>
 
         <Card title="Payroll analytics" subtitle="Status mix for the selected filter">
           <div className="h-64">
@@ -113,22 +116,30 @@ export function PayrollPage() {
               payroll={payroll}
               actions={
                 <>
-                  {canRunPayroll && payroll.status === 'DRAFT' && <button className="btn-secondary" onClick={(event) => {
-                    event.stopPropagation()
-                    api.submitPayroll(payroll.id).then(payrolls.reload)
-                  }}>Submit</button>}
-                  {canRunPayroll && payroll.status === 'PENDING_APPROVAL' && <button className="btn-secondary" onClick={(event) => {
-                    event.stopPropagation()
-                    api.approvePayroll(payroll.id).then(payrolls.reload)
-                  }}>Approve</button>}
-                  {canRunPayroll && ['DRAFT', 'PENDING_APPROVAL', 'SCHEDULED'].includes(payroll.status) && <button className="btn-secondary" onClick={(event) => {
-                    event.stopPropagation()
-                    api.cancelPayroll(payroll.id).then(payrolls.reload)
-                  }}>Cancel</button>}
-                  {canRunPayroll && payroll.status === 'FAILED' && <button className="btn-secondary" onClick={(event) => {
-                    event.stopPropagation()
-                    api.retryPayroll(payroll.id).then(payrolls.reload)
-                  }}>Retry</button>}
+                  <Can permission="payroll.submit">
+                    {payroll.status === 'DRAFT' ? <button className="btn-secondary" onClick={(event) => {
+                      event.stopPropagation()
+                      api.submitPayroll(payroll.id).then(payrolls.reload)
+                    }}>Submit</button> : null}
+                  </Can>
+                  <Can permission="payroll.approve">
+                    {payroll.status === 'PENDING_APPROVAL' ? <button className="btn-secondary" onClick={(event) => {
+                      event.stopPropagation()
+                      api.approvePayroll(payroll.id).then(payrolls.reload)
+                    }}>Approve</button> : null}
+                  </Can>
+                  <Can permission="payroll.cancel">
+                    {['DRAFT', 'PENDING_APPROVAL', 'SCHEDULED'].includes(payroll.status) ? <button className="btn-secondary" onClick={(event) => {
+                      event.stopPropagation()
+                      api.cancelPayroll(payroll.id).then(payrolls.reload)
+                    }}>Cancel</button> : null}
+                  </Can>
+                  <Can permission="payroll.retry">
+                    {payroll.status === 'FAILED' ? <button className="btn-secondary" onClick={(event) => {
+                      event.stopPropagation()
+                      api.retryPayroll(payroll.id).then(payrolls.reload)
+                    }}>Retry</button> : null}
+                  </Can>
                 </>
               }
             />
@@ -151,7 +162,6 @@ function statusBuckets(payrolls: Payroll[]) {
 }
 
 function PayrollDetail({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
-  const canRunPayroll = ['OWNER', 'ADMIN', 'FINANCE'].includes(authStore.user()?.role || '')
   const payroll = useLoad(() => api.payroll(id), [id])
   const rows = payroll.data?.payrollEmployees || []
   const failedRows = rows.filter((row) => row.status === 'FAILED')
@@ -182,15 +192,25 @@ function PayrollDetail({ id, onClose, onChanged }: { id: string; onClose: () => 
               </div>
               {payroll.data.failureReason && <Notice tone="danger" title="Failure reason">{payroll.data.failureReason}</Notice>}
               <div className="flex flex-wrap gap-2">
-                {canRunPayroll && payroll.data.status === 'DRAFT' && <button className="btn-secondary" onClick={() => api.submitPayroll(id).then(refreshAll)}>Submit for approval</button>}
-                {canRunPayroll && payroll.data.status === 'PENDING_APPROVAL' && <button className="btn-primary" onClick={() => api.approvePayroll(id).then(refreshAll)}>Approve payroll</button>}
-                {canRunPayroll && ['DRAFT', 'PENDING_APPROVAL', 'SCHEDULED'].includes(payroll.data.status) && <button className="btn-secondary" onClick={() => api.cancelPayroll(id).then(refreshAll)}>Cancel payroll</button>}
-                {canRunPayroll && payroll.data.status === 'FAILED' && <button className="btn-primary" onClick={() => {
-                  if (confirm(`Retry ${failedRows.length} failed rows totaling ${formatNaira(failedRows.reduce((sum, row) => sum + row.amount, 0))}?`)) {
-                    api.retryPayroll(id).then(refreshAll)
-                  }
-                }}>Retry failed rows</button>}
-                <button className="btn-secondary" onClick={() => api.exportPayroll(id)}>Export CSV</button>
+                <Can permission="payroll.submit">
+                  {payroll.data.status === 'DRAFT' ? <button className="btn-secondary" onClick={() => api.submitPayroll(id).then(refreshAll)}>Submit for approval</button> : null}
+                </Can>
+                <Can permission="payroll.approve">
+                  {payroll.data.status === 'PENDING_APPROVAL' ? <button className="btn-primary" onClick={() => api.approvePayroll(id).then(refreshAll)}>Approve payroll</button> : null}
+                </Can>
+                <Can permission="payroll.cancel">
+                  {['DRAFT', 'PENDING_APPROVAL', 'SCHEDULED'].includes(payroll.data.status) ? <button className="btn-secondary" onClick={() => api.cancelPayroll(id).then(refreshAll)}>Cancel payroll</button> : null}
+                </Can>
+                <Can permission="payroll.retry">
+                  {payroll.data.status === 'FAILED' ? <button className="btn-primary" onClick={() => {
+                    if (confirm(`Retry ${failedRows.length} failed rows totaling ${formatNaira(failedRows.reduce((sum, row) => sum + row.amount, 0))}?`)) {
+                      api.retryPayroll(id).then(refreshAll)
+                    }
+                  }}>Retry failed rows</button> : null}
+                </Can>
+                <Can permission="payroll.export">
+                  <button className="btn-secondary" onClick={() => api.exportPayroll(id)}>Export CSV</button>
+                </Can>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-sm">

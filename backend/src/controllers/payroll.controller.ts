@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PayrollStatus, Prisma, PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { AppError } from '../middleware/errorHandler';
 import { getPaginationParams, paginatedResponse } from '../utils/formatters';
@@ -32,7 +32,10 @@ async function buildPayrollData(companyId: string, employeeIds: string[]) {
   return { employees, totalAmount };
 }
 
-async function availableWalletBalance(companyId: string, tx: any = prisma) {
+async function availableWalletBalance(
+  companyId: string,
+  tx: Prisma.TransactionClient | PrismaClient = prisma
+) {
   const wallet = await tx.wallet.findUnique({ where: { companyId } });
   return {
     wallet,
@@ -41,7 +44,7 @@ async function availableWalletBalance(companyId: string, tx: any = prisma) {
 }
 
 async function reservePayrollFunds(payroll: { id: string; companyId: string; totalAmount: number }) {
-  await prisma.$transaction(async (tx: any) => {
+  await prisma.$transaction(async (tx) => {
     const { wallet, availableBalance } = await availableWalletBalance(payroll.companyId, tx);
 
     if (!wallet || availableBalance < payroll.totalAmount) {
@@ -59,7 +62,7 @@ async function reservePayrollFunds(payroll: { id: string; companyId: string; tot
 }
 
 async function releasePayrollReservation(payroll: { companyId: string; totalAmount: number }) {
-  await prisma.$transaction(async (tx: any) => {
+  await prisma.$transaction(async (tx) => {
     const { wallet } = await availableWalletBalance(payroll.companyId, tx);
     if (!wallet || wallet.reservedBalance <= 0) return;
 
@@ -192,7 +195,7 @@ export const updatePayrollDraft = async (req: Request, res: Response, next: Next
       employeeRows = built.employees.map((employee) => ({ employeeId: employee.id, amount: employee.salary }));
     }
 
-    const payroll = await prisma.$transaction(async (tx: any) => {
+    const payroll = await prisma.$transaction(async (tx) => {
       if (employeeRows) {
         await tx.payrollEmployee.deleteMany({ where: { payrollId: existing.id } });
       }
@@ -330,7 +333,13 @@ export const getPayrolls = async (req: Request, res: Response, next: NextFunctio
       Number(req.query.limit) || 10
     );
     const status = req.query.status as string | undefined;
-    const where = { companyId: req.user.companyId, ...(status && { status: status as any }) };
+    if (status && !Object.values(PayrollStatus).includes(status as PayrollStatus)) {
+      throw new AppError(`Invalid payroll status: ${status}`, 400);
+    }
+    const where: Prisma.PayrollWhereInput = {
+      companyId: req.user.companyId,
+      ...(status && { status: status as PayrollStatus }),
+    };
 
     const [payrolls, total] = await Promise.all([
       prisma.payroll.findMany({
@@ -417,7 +426,28 @@ export const retryPayroll = async (req: Request, res: Response, next: NextFuncti
     if (!payroll) throw new AppError('Payroll not found', 404);
     if (payroll.status !== 'FAILED') throw new AppError('Only failed payrolls can be retried', 400);
 
-    const retryAmount = payroll.payrollEmployees.reduce((sum, pe) => sum + pe.amount, 0);
+    const unresolvedTransferCount = await prisma.transaction.count({
+      where: {
+        type: 'PAYROLL_DEBIT',
+        status: 'PENDING',
+        payrollEmployee: { payrollId: payroll.id },
+      },
+    });
+    if (unresolvedTransferCount > 0) {
+      throw new AppError(
+        'Payroll has unresolved provider transfers and cannot be retried until reconciliation completes',
+        409
+      );
+    }
+
+    const retryableRows = await prisma.payrollEmployee.findMany({
+      where: {
+        payrollId: payroll.id,
+        status: { in: ['FAILED', 'REVERSED'] },
+      },
+      select: { id: true, amount: true },
+    });
+    const retryAmount = retryableRows.reduce((sum, pe) => sum + pe.amount, 0);
     if (retryAmount === 0) throw new AppError('No failed payroll employee rows to retry', 400);
 
     const { wallet, availableBalance } = await availableWalletBalance(req.user.companyId);
@@ -425,13 +455,24 @@ export const retryPayroll = async (req: Request, res: Response, next: NextFuncti
       throw new AppError(`Insufficient wallet balance. Required: ${retryAmount}, Available: ${availableBalance}`, 400);
     }
 
-    await prisma.$transaction(async (tx: any) => {
+    await prisma.$transaction(async (tx) => {
+      await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { reservedBalance: { increment: retryAmount } },
+      });
       await tx.payroll.update({
         where: { id: payroll.id },
-        data: { status: 'SCHEDULED', failureReason: null },
+        data: {
+          status: 'SCHEDULED',
+          failureReason: null,
+          processedDate: null,
+          processingStartedAt: null,
+          processingHeartbeatAt: null,
+          reservationReleasedAt: null,
+        },
       });
       await tx.payrollEmployee.updateMany({
-        where: { payrollId: payroll.id, status: 'FAILED' },
+        where: { payrollId: payroll.id, status: { in: ['FAILED', 'REVERSED'] } },
         data: { status: 'PENDING' },
       });
     });
@@ -442,7 +483,7 @@ export const retryPayroll = async (req: Request, res: Response, next: NextFuncti
       action: 'PAYROLL_RETRY_REQUESTED',
       entityType: 'Payroll',
       entityId: payroll.id,
-      metadata: { retryAmount, failedRows: payroll.payrollEmployees.length },
+      metadata: { retryAmount, failedRows: retryableRows.length },
     });
 
     await payrollQueue.add(
@@ -469,7 +510,7 @@ export const exportPayroll = async (req: Request, res: Response, next: NextFunct
 
     const rows = [
       ['Employee', 'Email', 'Bank', 'Account Last 4', 'Amount Kobo', 'Status', 'Reference', 'Transfer Id'],
-      ...payroll.payrollEmployees.map((row: any) => [
+      ...payroll.payrollEmployees.map((row) => [
         `${row.employee.firstName} ${row.employee.lastName}`,
         row.employee.email,
         row.employee.bankName,

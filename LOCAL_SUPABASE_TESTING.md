@@ -17,7 +17,7 @@ Schema: public
 ```
 
 The `remit_test` database was created separately from the existing local
-Supabase project database. All six REMIT Prisma migrations have been applied.
+Supabase project database. All seven REMIT Prisma migrations have been applied.
 
 ## Run the local integration smoke test
 
@@ -41,6 +41,11 @@ The script:
 
 It does not edit or replace `backend/.env`, so the saved remote configuration
 remains intact.
+
+The suite explicitly uses `PAYROLL_QUEUE_MODE=in-process`. Redis connectivity
+is tested separately with `corepack pnpm test:redis`. A separate isolated-queue
+test verified API approval through a real Redis-backed standalone worker while
+keeping payroll records in the disposable local Supabase database.
 
 ## Use another local database or API port
 
@@ -74,6 +79,27 @@ powershell -ExecutionPolicy Bypass `
 - Safe requeue after a simulated pre-dispatch worker crash
 - Reconciliation quarantine after a simulated post-dispatch worker crash
 - Duplicate debit prevention for a quarantined payroll
+- Concurrent transfer-reconciliation claims across three workers
+- Paystack transfer verification for success, failure, reversal, and pending states
+- Exact single refunds for failed and reversed transfers
+- Retry rejection while a provider transfer remains unresolved
+- Provider amount-mismatch rejection without changing wallet state
+- Effective permission payload verification for all five declared roles
+- Owner, Admin, Finance, Viewer, and reserved Employee API access boundaries
+- Read-only role rejection for wallet, employee-write, company-write, and
+  payroll operations
+
+The reconciliation scheduler defaults to checking pending payroll debits after
+two minutes, waiting five minutes between checks, leasing each reconciliation
+claim for two minutes, and processing at most 50 records per cycle. These can be
+adjusted with:
+
+```text
+TRANSFER_RECONCILIATION_MIN_AGE_MS
+TRANSFER_RECONCILIATION_INTERVAL_MS
+TRANSFER_RECONCILIATION_CLAIM_TIMEOUT_MS
+TRANSFER_RECONCILIATION_BATCH_SIZE
+```
 
 These are integration smoke tests, not a replacement for the automated
 idempotency, concurrency, webhook, wallet, and payroll tests recommended in

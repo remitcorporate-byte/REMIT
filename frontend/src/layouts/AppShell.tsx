@@ -1,51 +1,26 @@
 import { ReactNode, useState } from 'react'
 import {
-  Bell,
-  CalendarClock,
-  CreditCard,
-  LayoutDashboard,
   LogOut,
   Menu,
-  Settings,
   ShieldCheck,
-  Users,
-  Wallet,
   X,
 } from 'lucide-react'
 import { clsx } from 'clsx'
+import { useAuth } from '../auth/AuthContext'
+import type { NavigationItem, View } from '../navigation/appNavigation'
 import type { User } from '../types'
 
-export type View = 'dashboard' | 'employees' | 'wallet' | 'payrolls' | 'transactions' | 'notifications' | 'settings'
-
-const nav: Array<{ id: View; label: string; icon: typeof LayoutDashboard }> = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'employees', label: 'Employees', icon: Users },
-  { id: 'wallet', label: 'Wallet', icon: Wallet },
-  { id: 'payrolls', label: 'Payroll', icon: CalendarClock },
-  { id: 'transactions', label: 'Transactions', icon: CreditCard },
-  { id: 'notifications', label: 'Alerts', icon: Bell },
-  { id: 'settings', label: 'Settings', icon: Settings },
-]
-
-const headlines: Record<View, string> = {
-  dashboard: 'Your payroll operating picture',
-  employees: 'Team records and salary data',
-  wallet: 'Fund and monitor payroll balance',
-  payrolls: 'Schedule and control payroll runs',
-  transactions: 'Audit every money movement',
-  notifications: 'Operational alerts',
-  settings: 'Company profile and API settings',
-}
-
-export function AppShell({ user, view, onViewChange, onLogout, children }: {
-  user: User
+export function AppShell({ navigation, view, onViewChange, onLogout, children }: {
+  navigation: NavigationItem[]
   view: View
   onViewChange: (view: View) => void
   onLogout: () => void
   children: ReactNode
 }) {
+  const { user } = useAuth()
   const [open, setOpen] = useState(false)
-  const current = nav.find((item) => item.id === view)!
+  const current = navigation.find((item) => item.id === view) || navigation[0]
+  if (!user || !current) return null
 
   return (
     <div className="min-h-screen bg-slate-100 lg:grid lg:grid-cols-[280px_1fr]">
@@ -62,7 +37,7 @@ export function AppShell({ user, view, onViewChange, onLogout, children }: {
         </div>
 
         <nav className="mt-7 grid gap-2">
-          {nav.map((item) => {
+          {navigation.map((item) => {
             const Icon = item.icon
             return (
               <button
@@ -97,7 +72,7 @@ export function AppShell({ user, view, onViewChange, onLogout, children }: {
             </button>
             <div>
               <p className="text-sm text-slate-500">{current.label}</p>
-              <h1 className="text-xl font-bold tracking-normal text-ink sm:text-2xl">{headlines[view]}</h1>
+              <h1 className="text-xl font-bold tracking-normal text-ink sm:text-2xl">{current.headline}</h1>
             </div>
           </div>
           <div className="flex items-center justify-between gap-3">

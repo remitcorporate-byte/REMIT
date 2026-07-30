@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react'
-import { api, authStore } from '../api'
+import { api } from '../api'
 import { Card } from '../components/ui/Card'
 import { Field } from '../components/ui/Field'
 import { Notice } from '../components/ui/Notice'
 import { PageState } from '../components/ui/PageState'
 import { useLoad } from '../hooks/useLoad'
 import type { Company, TeamMember, TeamRole } from '../types'
+import { Can } from '../auth/Can'
+import { useAuth } from '../auth/AuthContext'
 
 const assignableRoles: Array<Extract<TeamRole, 'ADMIN' | 'FINANCE' | 'VIEWER'>> = ['ADMIN', 'FINANCE', 'VIEWER']
 
 export function SettingsPage() {
-  const currentUser = authStore.user()
-  const isOwner = currentUser?.role === 'OWNER'
-  const canViewAudit = currentUser?.role === 'OWNER' || currentUser?.role === 'ADMIN'
+  const { can } = useAuth()
+  const canManageCompany = can('company.manage')
+  const canViewAudit = can('audit.read')
   const company = useLoad(api.company)
   const systemStatus = useLoad(api.systemStatus)
   const auditLog = useLoad(() => (canViewAudit ? api.auditLog() : Promise.resolve([])), [canViewAudit])
@@ -89,18 +91,20 @@ export function SettingsPage() {
     <PageState loading={company.loading} error={company.error} onRetry={company.reload}>
       <Card title="Company profile" subtitle="Updates the /company backend resource">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Company name" value={form.name || ''} onChange={(name) => setForm({ ...form, name })} />
-          <Field label="Email" type="email" value={form.email || ''} onChange={(email) => setForm({ ...form, email })} />
-          <Field label="Phone" value={form.phone || ''} onChange={(phone) => setForm({ ...form, phone })} />
-          <Field label="Address" value={form.address || ''} onChange={(address) => setForm({ ...form, address })} />
+          <Field label="Company name" value={form.name || ''} onChange={(name) => setForm({ ...form, name })} disabled={!canManageCompany} />
+          <Field label="Email" type="email" value={form.email || ''} onChange={(email) => setForm({ ...form, email })} disabled={!canManageCompany} />
+          <Field label="Phone" value={form.phone || ''} onChange={(phone) => setForm({ ...form, phone })} disabled={!canManageCompany} />
+          <Field label="Address" value={form.address || ''} onChange={(address) => setForm({ ...form, address })} disabled={!canManageCompany} />
         </div>
-        <button className="btn-primary mt-5" onClick={save}>Save settings</button>
+        <Can permission="company.manage">
+          <button className="btn-primary mt-5" onClick={save}>Save settings</button>
+        </Can>
         {message && <div className="mt-4"><Notice title="Settings status">{message}</Notice></div>}
       </Card>
 
       <Card title="Team access" subtitle="Invite finance users, admins, and read-only viewers">
         <PageState loading={team.loading} error={team.error} onRetry={team.reload}>
-          {isOwner && (
+          <Can permission="team.manage">
             <div className="mb-5 grid gap-4 lg:grid-cols-[1fr_1fr_1.3fr_.8fr_1fr_auto]">
               <Field label="First name" value={invite.firstName} onChange={(firstName) => setInvite({ ...invite, firstName })} />
               <Field label="Last name" value={invite.lastName} onChange={(lastName) => setInvite({ ...invite, lastName })} />
@@ -118,7 +122,7 @@ export function SettingsPage() {
               <Field label="Password optional" type="password" value={invite.password} onChange={(password) => setInvite({ ...invite, password })} />
               <button className="btn-primary self-end" onClick={inviteMember}>Invite</button>
             </div>
-          )}
+          </Can>
           {teamMessage && <div className="mb-4"><Notice title="Team status">{teamMessage}</Notice></div>}
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
@@ -128,7 +132,9 @@ export function SettingsPage() {
                   <th className="px-3 py-3">Email</th>
                   <th className="px-3 py-3">Role</th>
                   <th className="px-3 py-3">Status</th>
-                  {isOwner && <th className="px-3 py-3">Actions</th>}
+                  <Can permission="team.manage">
+                    <th className="px-3 py-3">Actions</th>
+                  </Can>
                 </tr>
               </thead>
               <tbody>
@@ -137,24 +143,26 @@ export function SettingsPage() {
                     <td className="px-3 py-3 font-medium">{member.firstName} {member.lastName}</td>
                     <td className="px-3 py-3">{member.email}</td>
                     <td className="px-3 py-3">
-                      {isOwner && member.role !== 'OWNER' ? (
-                        <select
-                          className="field-control min-w-32"
-                          value={member.role}
-                          onChange={(event) => updateRole(member, event.target.value as Extract<TeamRole, 'ADMIN' | 'FINANCE' | 'VIEWER'>)}
-                        >
-                          {assignableRoles.map((role) => <option key={role} value={role}>{role}</option>)}
-                        </select>
-                      ) : member.role}
+                      <Can permission="team.manage" fallback={member.role}>
+                        {member.role !== 'OWNER' ? (
+                          <select
+                            className="field-control min-w-32"
+                            value={member.role}
+                            onChange={(event) => updateRole(member, event.target.value as Extract<TeamRole, 'ADMIN' | 'FINANCE' | 'VIEWER'>)}
+                          >
+                            {assignableRoles.map((role) => <option key={role} value={role}>{role}</option>)}
+                          </select>
+                        ) : member.role}
+                      </Can>
                     </td>
                     <td className="px-3 py-3">{member.isActive ? 'Active' : 'Inactive'}</td>
-                    {isOwner && (
+                    <Can permission="team.manage">
                       <td className="px-3 py-3">
-                        {member.role !== 'OWNER' && member.isActive && (
+                        {member.role !== 'OWNER' && member.isActive ? (
                           <button className="btn-secondary" onClick={() => deactivate(member)}>Deactivate</button>
-                        )}
+                        ) : null}
                       </td>
-                    )}
+                    </Can>
                   </tr>
                 ))}
               </tbody>
@@ -165,16 +173,24 @@ export function SettingsPage() {
 
       <Card title="System status" subtitle="Backend provider and runtime readiness">
         <PageState loading={systemStatus.loading} error={systemStatus.error} onRetry={systemStatus.reload}>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Status label="API" value={systemStatus.data?.apiConnected ? 'Connected' : 'Unavailable'} />
             <Status label="Database" value={systemStatus.data?.databaseConnected ? 'Connected' : 'Unavailable'} />
             <Status label="Paystack" value={systemStatus.data?.paystackMode || 'unknown'} />
             <Status label="Scheduler" value={systemStatus.data?.schedulerMode || 'unknown'} />
+            <Status
+              label="Queue"
+              value={
+                systemStatus.data
+                  ? `${systemStatus.data.queueMode} · ${systemStatus.data.queueConnected ? 'connected' : 'unavailable'}`
+                  : 'unknown'
+              }
+            />
           </div>
         </PageState>
       </Card>
 
-      {canViewAudit && (
+      <Can permission="audit.read">
         <Card title="Activity log" subtitle="Recent operational actions and provider events">
           <PageState loading={auditLog.loading} error={auditLog.error} onRetry={auditLog.reload}>
             <div className="grid gap-3">
@@ -189,7 +205,7 @@ export function SettingsPage() {
             </div>
           </PageState>
         </Card>
-      )}
+      </Can>
     </PageState>
   )
 }

@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import config from '../config';
 import { AppError } from '../middleware/errorHandler';
+import { getPermissions } from '../auth/permissions';
 
 const prisma = new PrismaClient();
 
@@ -46,7 +47,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     const hashedPassword = await bcrypt.hash(body.password, salt);
 
     // Create user, company, and wallet in a transaction
-    const result = await prisma.$transaction(async (tx: any) => {
+    const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
           email: body.email,
@@ -91,6 +92,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
           firstName: result.user.firstName,
           lastName: result.user.lastName,
           role: result.user.role,
+          permissions: getPermissions(result.user.role),
           companyId: result.company.id,
           companyName: result.company.name,
         },
@@ -141,6 +143,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role,
+          permissions: getPermissions(user.role),
           companyId: user.companyId,
           companyName: user.company?.name || user.ownedCompany?.name,
         },
@@ -182,6 +185,7 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        permissions: getPermissions(user.role),
         companyId: user.companyId,
         company: user.company
           ? {

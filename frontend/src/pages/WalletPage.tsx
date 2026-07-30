@@ -6,6 +6,7 @@ import { Field } from '../components/ui/Field'
 import { Notice } from '../components/ui/Notice'
 import { PageState } from '../components/ui/PageState'
 import { useLoad } from '../hooks/useLoad'
+import { Can } from '../auth/Can'
 
 export function WalletPage() {
   const wallet = useLoad(api.wallet)
@@ -66,13 +67,15 @@ export function WalletPage() {
           <strong className="text-2xl">{formatNaira(wallet.data?.balance || 0)}</strong>
         </Card>
       </div>
-      <Card title="Fund wallet" subtitle="Initializes a Paystack checkout session through the API">
-        <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
-          <Field label="Amount in naira" type="number" value={amount} onChange={setAmount} />
-          <button className="btn-primary" onClick={deposit}>Initialize deposit</button>
-        </div>
-        {message && <div className="mt-4"><Notice title="Wallet status">{message}</Notice></div>}
-      </Card>
+      <Can permission="wallet.fund">
+        <Card title="Fund wallet" subtitle="Initializes a Paystack checkout session through the API">
+          <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+            <Field label="Amount in naira" type="number" value={amount} onChange={setAmount} />
+            <button className="btn-primary" onClick={deposit}>Initialize deposit</button>
+          </div>
+          {message && <div className="mt-4"><Notice title="Wallet status">{message}</Notice></div>}
+        </Card>
+      </Can>
     </PageState>
   )
 }

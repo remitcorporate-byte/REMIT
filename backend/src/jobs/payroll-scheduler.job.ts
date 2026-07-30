@@ -1,8 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 import { payrollQueue } from '../queues/payroll.queue';
+import { reconcilePendingTransfers } from './transfer-reconciliation.job';
 
 const prisma = new PrismaClient();
 let schedulerStarted = false;
+let schedulerTimer: NodeJS.Timeout | null = null;
 
 export async function recoverStalePayrolls() {
   const timeoutMs = Number(process.env.PAYROLL_PROCESSING_TIMEOUT_MS || 15 * 60 * 1000);
@@ -115,9 +117,10 @@ export async function processDuePayrolls() {
 }
 
 export async function runPayrollSchedulerCycle() {
+  const reconciliation = await reconcilePendingTransfers();
   const recovery = await recoverStalePayrolls();
   const queued = await processDuePayrolls();
-  return { ...recovery, queued };
+  return { ...recovery, queued, reconciliation };
 }
 
 export function startPayrollScheduler() {
@@ -126,7 +129,7 @@ export function startPayrollScheduler() {
 
   const intervalMs = Number(process.env.PAYROLL_SCHEDULER_INTERVAL_MS || 60000);
 
-  setInterval(() => {
+  schedulerTimer = setInterval(() => {
     runPayrollSchedulerCycle()
       .then((result) => {
         if (result.queued > 0) {
@@ -138,10 +141,34 @@ export function startPayrollScheduler() {
             `${result.reconciliationRequired} require reconciliation`
           );
         }
+        if (
+          result.reconciliation.succeeded > 0 ||
+          result.reconciliation.failed > 0 ||
+          result.reconciliation.reversed > 0 ||
+          result.reconciliation.errors > 0
+        ) {
+          console.log(
+            '[PayrollScheduler] Transfer reconciliation: ' +
+            `${result.reconciliation.succeeded} succeeded, ` +
+            `${result.reconciliation.failed} failed, ` +
+            `${result.reconciliation.reversed} reversed, ` +
+            `${result.reconciliation.pending} pending, ` +
+            `${result.reconciliation.errors} errors`
+          );
+        }
       })
       .catch((error) => console.error('[PayrollScheduler] Error:', error));
   }, intervalMs);
 
   runPayrollSchedulerCycle().catch((error) => console.error('[PayrollScheduler] Startup error:', error));
-  console.log(`[PayrollScheduler] Database-claimed scheduler started (${intervalMs}ms interval)`);
+  console.log(
+    `[PayrollScheduler] Database-claimed ${payrollQueue.mode} scheduler started ` +
+    `(${intervalMs}ms interval)`
+  );
+}
+
+export function stopPayrollScheduler() {
+  if (schedulerTimer) clearInterval(schedulerTimer);
+  schedulerTimer = null;
+  schedulerStarted = false;
 }

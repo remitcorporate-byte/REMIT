@@ -5,15 +5,15 @@ import {
   inviteTeamMember,
   updateTeamMemberRole,
 } from '../controllers/team.controller';
-import { protect } from '../middleware/auth';
+import { protect, authorizePermission } from '../middleware/auth';
 
 const router = Router();
 
 router.use(protect);
 
-router.get('/', getTeam);
-router.post('/invite', inviteTeamMember);
-router.put('/:id/role', updateTeamMemberRole);
-router.put('/:id/deactivate', deactivateTeamMember);
+router.get('/', authorizePermission('team.read'), getTeam);
+router.post('/invite', authorizePermission('team.manage'), inviteTeamMember);
+router.put('/:id/role', authorizePermission('team.manage'), updateTeamMemberRole);
+router.put('/:id/deactivate', authorizePermission('team.manage'), deactivateTeamMember);
 
 export default router;

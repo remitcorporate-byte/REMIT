@@ -1,11 +1,37 @@
 export type TeamRole = 'OWNER' | 'ADMIN' | 'FINANCE' | 'VIEWER' | 'EMPLOYEE'
 
+export type Permission =
+  | 'dashboard.read'
+  | 'company.read'
+  | 'company.manage'
+  | 'system.read'
+  | 'team.read'
+  | 'team.manage'
+  | 'employee.read'
+  | 'employee.manage'
+  | 'bank.verify'
+  | 'wallet.read'
+  | 'wallet.fund'
+  | 'payroll.read'
+  | 'payroll.create'
+  | 'payroll.update'
+  | 'payroll.submit'
+  | 'payroll.approve'
+  | 'payroll.cancel'
+  | 'payroll.retry'
+  | 'payroll.export'
+  | 'transaction.read'
+  | 'transaction.export'
+  | 'notification.read'
+  | 'audit.read'
+
 export type User = {
   id: string
   email: string
   firstName: string
   lastName: string
   role: TeamRole
+  permissions: Permission[]
   companyId?: string | null
   companyName?: string
   company?: Company | null
@@ -157,6 +183,11 @@ export type SystemStatus = {
   apiConnected: boolean
   databaseConnected: boolean
   schedulerMode: string
+  queueMode: 'redis' | 'in-process'
+  queueConnected: boolean
+  queueWaiting?: number | null
+  queueActive?: number | null
+  queueFailed?: number | null
   paystackMode: 'mock' | 'live'
   frontendUrl?: string | null
 }

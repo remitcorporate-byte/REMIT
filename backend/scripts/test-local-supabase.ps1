@@ -30,6 +30,9 @@ try {
     $env:PAYSTACK_PUBLIC_KEY = 'pk_test_local_only'
     $env:PAYSTACK_BASE_URL = 'https://api.paystack.co'
     $env:BASE_URL = "http://127.0.0.1:$Port/api/v1"
+    $env:GENERAL_RATE_LIMIT_MAX = '1000'
+    $env:AUTH_RATE_LIMIT_MAX = '200'
+    $env:PAYROLL_QUEUE_MODE = 'in-process'
 
     Write-Host 'Applying Prisma migrations to the local REMIT test database...'
     & corepack pnpm exec prisma migrate deploy
@@ -56,14 +59,28 @@ try {
         -WindowStyle Hidden `
         -PassThru
 
-    Start-Sleep -Seconds 3
+    $health = $null
+    for ($attempt = 1; $attempt -le 30; $attempt++) {
+        if ($serverProcess.HasExited) {
+            throw "Local test API exited during startup with code $($serverProcess.ExitCode)."
+        }
 
-    $health = Invoke-WebRequest `
-        -UseBasicParsing `
-        -Uri "$($env:BASE_URL)/health" `
-        -TimeoutSec 10
+        try {
+            $health = Invoke-WebRequest `
+                -UseBasicParsing `
+                -Uri "$($env:BASE_URL)/health" `
+                -TimeoutSec 2
+            break
+        }
+        catch {
+            if ($attempt -eq 30) {
+                throw 'Local test API did not become healthy within 30 attempts.'
+            }
+            Start-Sleep -Seconds 1
+        }
+    }
 
-    if ($health.StatusCode -ne 200) {
+    if (-not $health -or $health.StatusCode -ne 200) {
         throw "API health check returned HTTP $($health.StatusCode)."
     }
 
@@ -85,10 +102,22 @@ try {
         throw 'Payroll approval-control tests failed.'
     }
 
+    Write-Host 'Running role-permission interface tests...'
+    & corepack pnpm exec ts-node scripts/test-role-permissions.ts
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Role-permission interface tests failed.'
+    }
+
     Write-Host 'Running payroll worker durability tests...'
     & corepack pnpm exec ts-node scripts/test-payroll-worker-durability.ts
     if ($LASTEXITCODE -ne 0) {
         throw 'Payroll worker durability tests failed.'
+    }
+
+    Write-Host 'Running transfer reconciliation tests...'
+    & corepack pnpm exec ts-node scripts/test-transfer-reconciliation.ts
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Transfer reconciliation tests failed.'
     }
 
     Write-Host 'Local Supabase API tests passed.'

@@ -8,6 +8,7 @@ import { Notice } from '../components/ui/Notice'
 import { PageState } from '../components/ui/PageState'
 import { useLoad } from '../hooks/useLoad'
 import type { Employee } from '../types'
+import { Can } from '../auth/Can'
 
 export function EmployeesPage() {
   const [search, setSearch] = useState('')
@@ -22,9 +23,11 @@ export function EmployeesPage() {
           <Search size={18} className="text-slate-400" />
           <input className="w-full bg-transparent outline-none" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search employees by name or email" />
         </label>
-        <button className="btn-primary" onClick={() => setShowForm(true)}>
-          <Plus size={18} /> Add employee
-        </button>
+        <Can permission="employee.manage">
+          <button className="btn-primary" onClick={() => setShowForm(true)}>
+            <Plus size={18} /> Add employee
+          </button>
+        </Can>
       </div>
 
       {(showForm || editing) && (
@@ -48,7 +51,9 @@ export function EmployeesPage() {
                 <th className="px-3 py-3">Bank</th>
                 <th className="px-3 py-3">Salary</th>
                 <th className="px-3 py-3">Next pay date</th>
-                <th className="px-3 py-3"></th>
+                <Can permission="employee.manage">
+                  <th className="px-3 py-3">Actions</th>
+                </Can>
               </tr>
             </thead>
             <tbody>
@@ -62,21 +67,23 @@ export function EmployeesPage() {
                   <td className="whitespace-nowrap px-3 py-4">{employee.bankName} ****{employee.accountNumber.slice(-4)}</td>
                   <td className="whitespace-nowrap px-3 py-4 font-bold">{formatNaira(employee.salary)}</td>
                   <td className="whitespace-nowrap px-3 py-4 text-slate-600">{formatDate(employee.nextPaymentDate)}</td>
-                  <td className="whitespace-nowrap px-3 py-4">
-                    <div className="flex gap-2">
-                      <button className="btn-secondary" onClick={() => setEditing(employee)}>Edit</button>
-                      <button
-                        className="btn-secondary"
-                        onClick={() => {
-                          if (confirm(`Deactivate ${employee.firstName} ${employee.lastName}?`)) {
-                            api.deleteEmployee(employee.id).then(employees.reload)
-                          }
-                        }}
-                      >
-                        Deactivate
-                      </button>
-                    </div>
-                  </td>
+                  <Can permission="employee.manage">
+                    <td className="whitespace-nowrap px-3 py-4">
+                      <div className="flex gap-2">
+                        <button className="btn-secondary" onClick={() => setEditing(employee)}>Edit</button>
+                        <button
+                          className="btn-secondary"
+                          onClick={() => {
+                            if (confirm(`Deactivate ${employee.firstName} ${employee.lastName}?`)) {
+                              api.deleteEmployee(employee.id).then(employees.reload)
+                            }
+                          }}
+                        >
+                          Deactivate
+                        </button>
+                      </div>
+                    </td>
+                  </Can>
                 </tr>
               ))}
             </tbody>

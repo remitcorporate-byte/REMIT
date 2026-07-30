@@ -56,6 +56,9 @@ export const authStore = {
     localStorage.setItem(TOKEN_KEY, token)
     localStorage.setItem(USER_KEY, JSON.stringify(user))
   },
+  saveUser(user: User) {
+    localStorage.setItem(USER_KEY, JSON.stringify(user))
+  },
   clear() {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)

@@ -68,6 +68,27 @@ against the isolated local Supabase database:
   twice.
 - A durability integration test runs three concurrent workers against one
   payroll and simulates crashes both before and after provider dispatch.
+- Pending payroll debits are now reconciled through Paystack's transfer
+  verification endpoint using database-leased claims.
+- Reconciliation treats success, failure, and reversal as conclusive; pending
+  transfers remain unresolved and are checked again later.
+- Failed and reversed transfers restore the wallet exactly once, even when
+  multiple reconcilers race.
+- Provider reference, transfer code, amount, and currency are checked against
+  the stored debit before settlement.
+- Payroll retry returns HTTP 409 while any provider transfer remains unresolved.
+- Role access is now capability-based. The backend exposes effective
+  permissions, routes enforce named permissions, and the frontend composes
+  navigation and controls from those permissions instead of scattered role
+  string checks.
+- The five-role permission matrix is covered by local API integration tests.
+- Production payroll delivery now uses a BullMQ producer/standalone-worker
+  architecture when `PAYROLL_QUEUE_MODE=redis`. Jobs have bounded retention,
+  automatic exponential retries, graceful worker shutdown, and Redis queue
+  health reporting.
+- The real Redis path passed an end-to-end test from API approval through the
+  standalone worker to a completed local-Supabase payroll with one exact wallet
+  debit.
 
 The local concurrency suite sends five concurrent copies of the same deposit
 event, five concurrent deposit-verification requests, and five concurrent
@@ -75,8 +96,10 @@ copies of the same transfer-reversal event. The suite passed.
 
 Remaining production work in this area includes persistent provider-event
 receipts, a transactional outbox for audit/notification side effects, a
-separate persistent worker/dead-letter system, automated Paystack transfer
-reconciliation, and deployed Paystack webhook verification.
+formal dead-letter/operator interface, an operator-facing reconciliation
+queue, and deployed Paystack webhook verification. The configured Redis
+service must also change its eviction policy from `volatile-lru` to
+`noeviction`.
 
 ### Build verification
 
@@ -290,8 +313,9 @@ Payroll processing changes status and wallet reservations before all provider ca
 
 This is normal for an asynchronous payment system. The current implementation
 now detects stale execution through persisted heartbeats. It requeues only when
-no provider transaction exists and quarantines ambiguous post-dispatch work for
-reconciliation.
+no provider transaction exists and quarantines ambiguous post-dispatch work.
+The scheduler then verifies pending transfers with Paystack under an atomic
+database lease and applies conclusive outcomes idempotently.
 
 **Evidence:** [`backend/src/jobs/process-payroll.job.ts`](backend/src/jobs/process-payroll.job.ts#L21-L65) and [`backend/src/jobs/process-payroll.job.ts`](backend/src/jobs/process-payroll.job.ts#L139-L220)
 
@@ -301,8 +325,9 @@ reconciliation.
 - Store an idempotency key before calling Paystack.
 - Avoid issuing a second provider transfer for a transaction whose provider request may already have succeeded.
 - Reconcile pending provider transfers periodically.
-- Add an automated reconciliation job for pending provider transfers.
-- Add an operator workflow to resolve quarantined payrolls before retry.
+- Add an operator workflow to inspect transfers that remain pending or fail
+  verification repeatedly.
+- Add alerting and escalation thresholds for aged pending transfers.
 
 ### High: temporary credentials are generated with weak randomness
 
@@ -415,15 +440,17 @@ Express API
         |
         +-- Prisma/PostgreSQL
         +-- Paystack REST API
-        +-- Database-claimed in-process scheduler
-        +-- In-memory payroll queue
+        +-- Database-claimed scheduler
+        +-- BullMQ/Redis payroll queue
+        +-- Standalone payroll worker
         +-- In-app notifications/audit logs
 ```
 
-This is appropriate for a local pilot or controlled staging environment. The
-database claim prevents duplicate execution across horizontally scaled API
-instances, but the in-process scheduler and queue remain an availability
-boundary that should move to persistent worker infrastructure.
+This is appropriate for a controlled staging environment after Redis is
+configured with `noeviction`. The database claim prevents duplicate execution
+across horizontally scaled workers, while BullMQ persists job delivery outside
+the API process. The remaining scheduler availability boundary can later move
+to a dedicated scheduler process or external trigger.
 
 ## Recommended implementation order
 

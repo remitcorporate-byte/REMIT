@@ -6,7 +6,8 @@ import config from './config';
 import routes from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import { generalLimiter } from './middleware/rateLimit';
-import { startPayrollScheduler } from './jobs/payroll-scheduler.job';
+import { startPayrollScheduler, stopPayrollScheduler } from './jobs/payroll-scheduler.job';
+import { payrollQueue } from './queues/payroll.queue';
 
 const app = express();
 
@@ -56,17 +57,25 @@ const server = app.listen(config.port, () => {
   console.log(`[Server] REMIT API running in ${config.env} mode on port ${config.port}`);
   console.log(`[Server] Health check: http://localhost:${config.port}/api/v1/health`);
 
-  // Start the in-process payroll scheduler
+  // The scheduler only discovers due payrolls and enqueues them. In Redis mode,
+  // a separate worker process owns execution.
   startPayrollScheduler();
 });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('[Server] SIGTERM received, shutting down gracefully...');
-  server.close(() => {
+let shuttingDown = false;
+async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[Server] ${signal} received, shutting down gracefully...`);
+  stopPayrollScheduler();
+  server.close(async () => {
+    await payrollQueue.close();
     console.log('[Server] Process terminated');
     process.exit(0);
   });
-});
+}
+
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
 
 export default app;

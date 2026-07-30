@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react'
-import { ArrowRight, Loader2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
 import { api } from '../api'
 import type { User } from '../types'
 import { Field } from '../components/ui/Field'
@@ -7,8 +7,16 @@ import { Notice } from '../components/ui/Notice'
 
 type Mode = 'login' | 'register'
 
-export function AuthScreen({ onAuthed }: { onAuthed: (user: User) => void }) {
-  const [mode, setMode] = useState<Mode>('login')
+export function AuthScreen({
+  onAuthed,
+  initialMode = 'login',
+  onBack,
+}: {
+  onAuthed: (user: User) => void
+  initialMode?: Mode
+  onBack?: () => void
+}) {
+  const [mode, setMode] = useState<Mode>(initialMode)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [form, setForm] = useState({
@@ -52,12 +60,15 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: User) => void }) {
             'linear-gradient(135deg, rgba(15,23,42,.76), rgba(29,78,216,.58)), url("https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=1600&q=80")',
         }}
       >
-        <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-lg bg-remit-600 font-black">R</div>
-          <div>
-            <strong className="block">REMIT</strong>
-            <span className="text-sm text-blue-100">Nigerian payroll operations</span>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-remit-600 font-black">R</div>
+            <div>
+              <strong className="block">REMIT</strong>
+              <span className="text-sm text-blue-100">Nigerian payroll operations</span>
+            </div>
           </div>
+          {onBack && <button className="inline-flex items-center gap-2 text-sm font-bold text-blue-100 hover:text-white" onClick={onBack}><ArrowLeft size={17} /> Home</button>}
         </div>
         <div className="max-w-3xl">
           <p className="mb-5 text-lg text-blue-100">Payroll, wallet funding, employee records, approvals, and transaction history in one API-connected workspace.</p>
@@ -83,15 +94,22 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: User) => void }) {
         <form onSubmit={submit} className="mt-6 grid gap-4">
           {mode === 'register' && (
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="First name" value={form.firstName} onChange={(firstName) => setForm({ ...form, firstName })} required />
-              <Field label="Last name" value={form.lastName} onChange={(lastName) => setForm({ ...form, lastName })} required />
+              <Field label="First name" value={form.firstName} onChange={(firstName) => setForm({ ...form, firstName })} autoComplete="given-name" required />
+              <Field label="Last name" value={form.lastName} onChange={(lastName) => setForm({ ...form, lastName })} autoComplete="family-name" required />
               <div className="sm:col-span-2">
-                <Field label="Company name" value={form.companyName} onChange={(companyName) => setForm({ ...form, companyName })} required />
+                <Field label="Company name" value={form.companyName} onChange={(companyName) => setForm({ ...form, companyName })} autoComplete="organization" required />
               </div>
             </div>
           )}
-          <Field label="Email" type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} required />
-          <Field label="Password" type="password" value={form.password} onChange={(password) => setForm({ ...form, password })} required />
+          <Field label="Email" type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} autoComplete="email" required />
+          <Field
+            label="Password"
+            type="password"
+            value={form.password}
+            onChange={(password) => setForm({ ...form, password })}
+            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+            required
+          />
           {error && <Notice tone="danger" title="Request failed">{error}</Notice>}
           <button className="btn-primary" disabled={loading}>
             {loading && <Loader2 className="animate-spin" size={18} />}
