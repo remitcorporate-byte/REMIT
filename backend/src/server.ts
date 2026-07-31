@@ -11,6 +11,9 @@ import { payrollQueue } from './queues/payroll.queue';
 
 const app = express();
 
+// Cloud Run terminates TLS and forwards the original client address.
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 app.use(cors({

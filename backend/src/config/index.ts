@@ -6,7 +6,9 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 const env = process.env.NODE_ENV || 'development';
 const isProduction = env === 'production';
 const requiredRuntimeVars = ['DATABASE_URL', 'JWT_SECRET', 'PAYSTACK_SECRET_KEY'];
-const requiredProductionVars = [...requiredRuntimeVars, 'REDIS_URL'];
+const requiredProductionVars = process.env.PAYROLL_QUEUE_MODE === 'in-process'
+  ? requiredRuntimeVars
+  : [...requiredRuntimeVars, 'REDIS_URL'];
 
 for (const varName of requiredProductionVars) {
   if (isProduction && !process.env[varName]) {
