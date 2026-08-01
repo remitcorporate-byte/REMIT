@@ -5,20 +5,22 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: '#172033',
+        ink: '#211a20',
         remit: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          600: '#1d4ed8',
-          700: '#1e40af',
+          50: '#fff3ec',
+          100: '#ffe0d1',
+          600: '#e85d2a',
+          700: '#c94719',
         },
         mint: {
-          50: '#ecfdf5',
-          600: '#0f766e',
+          50: '#eef9f3',
+          200: '#b9e8cf',
+          600: '#2f8a5d',
+          700: '#226c48',
         },
       },
       boxShadow: {
-        soft: '0 18px 50px rgba(15, 23, 42, 0.08)',
+        soft: '0 14px 36px rgba(43, 19, 43, 0.07)',
       },
     },
   },

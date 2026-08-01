@@ -67,6 +67,36 @@ enum NotificationChannel {
   SMS
 }
 
+enum SupportTicketCategory {
+  PAYMENT_FAILURE
+  WALLET_FUNDING
+  BANK_VERIFICATION
+  PAYROLL_ISSUE
+  ACCOUNT_ACCESS
+  GENERAL
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportMessageSender {
+  CUSTOMER
+  SUPPORT
+  SYSTEM
+}
+
 model User {
   id           String       @id @default(uuid())
   email        String       @unique
@@ -81,12 +111,14 @@ model User {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  company       Company?       @relation(fields: [companyId], references: [id])
-  ownedCompany  Company?       @relation("CompanyOwner")
-  notifications Notification[]
-  createdPayrolls Payroll[]    @relation("PayrollCreatedBy")
-  approvedPayrolls Payroll[]   @relation("PayrollApprovedBy")
-  auditLogs     AuditLog[]
+  company          Company?         @relation(fields: [companyId], references: [id])
+  ownedCompany     Company?         @relation("CompanyOwner")
+  notifications    Notification[]
+  createdPayrolls  Payroll[]        @relation("PayrollCreatedBy")
+  approvedPayrolls Payroll[]        @relation("PayrollApprovedBy")
+  auditLogs        AuditLog[]
+  supportTickets   SupportTicket[]  @relation("SupportTicketCreatedBy")
+  supportMessages  SupportMessage[] @relation("SupportMessageAuthor")
 
   @@index([email])
   @@index([companyId])
@@ -103,14 +135,15 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner         User           @relation("CompanyOwner", fields: [ownerId], references: [id])
-  users         User[]
-  wallet        Wallet?
-  employees     Employee[]
-  payrolls      Payroll[]
-  transactions  Transaction[]
-  notifications Notification[]
-  auditLogs     AuditLog[]
+  owner          User            @relation("CompanyOwner", fields: [ownerId], references: [id])
+  users          User[]
+  wallet         Wallet?
+  employees      Employee[]
+  payrolls       Payroll[]
+  transactions   Transaction[]
+  notifications  Notification[]
+  auditLogs      AuditLog[]
+  supportTickets SupportTicket[]
 
   @@index([ownerId])
 }
@@ -139,7 +172,7 @@ model Employee {
   bankCode              String
   accountNumber         String
   accountName           String
-  salary                Int              // in kobo
+  salary                Int // in kobo
   department            String?
   position              String?
   paymentFrequency      PaymentFrequency @default(MONTHLY)
@@ -158,31 +191,32 @@ model Employee {
 }
 
 model Payroll {
-  id            String        @id @default(uuid())
-  companyId     String
-  createdById   String?
-  approvedById  String?
-  scheduledDate DateTime
-  processedDate DateTime?
-  submittedAt   DateTime?
-  approvedAt    DateTime?
-  cancelledAt   DateTime?
+  id                    String        @id @default(uuid())
+  companyId             String
+  createdById           String?
+  approvedById          String?
+  scheduledDate         DateTime
+  processedDate         DateTime?
+  submittedAt           DateTime?
+  approvedAt            DateTime?
+  cancelledAt           DateTime?
   processingStartedAt   DateTime?
   processingHeartbeatAt DateTime?
   reservationReleasedAt DateTime?
   processingAttempt     Int           @default(0)
-  failureReason String?
-  status        PayrollStatus @default(DRAFT)
-  totalAmount   Int           @default(0) // in kobo
-  employeeCount Int           @default(0)
-  note          String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  failureReason         String?
+  status                PayrollStatus @default(DRAFT)
+  totalAmount           Int           @default(0) // in kobo
+  employeeCount         Int           @default(0)
+  note                  String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 
   company          Company           @relation(fields: [companyId], references: [id])
   createdBy        User?             @relation("PayrollCreatedBy", fields: [createdById], references: [id])
   approvedBy       User?             @relation("PayrollApprovedBy", fields: [approvedById], references: [id])
   payrollEmployees PayrollEmployee[]
+  supportTickets   SupportTicket[]
 
   @@index([companyId])
   @@index([createdById])
@@ -196,13 +230,13 @@ model PayrollEmployee {
   id         String            @id @default(uuid())
   payrollId  String
   employeeId String
-  amount     Int               // in kobo
+  amount     Int // in kobo
   status     TransactionStatus @default(PENDING)
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 
-  payroll  Payroll  @relation(fields: [payrollId], references: [id])
-  employee Employee @relation(fields: [employeeId], references: [id])
+  payroll     Payroll      @relation(fields: [payrollId], references: [id])
+  employee    Employee     @relation(fields: [employeeId], references: [id])
   transaction Transaction?
 
   @@unique([payrollId, employeeId])
@@ -211,28 +245,29 @@ model PayrollEmployee {
 }
 
 model Transaction {
-  id                 String            @id @default(uuid())
-  companyId          String
-  walletId           String
-  employeeId         String?
-  payrollEmployeeId  String?           @unique
-  type               TransactionType
-  amount             Int               // in kobo
-  status             TransactionStatus @default(PENDING)
-  description        String?
-  paystackReference  String?           @unique
-  paystackTransferId String?           @unique
+  id                      String            @id @default(uuid())
+  companyId               String
+  walletId                String
+  employeeId              String?
+  payrollEmployeeId       String?           @unique
+  type                    TransactionType
+  amount                  Int // in kobo
+  status                  TransactionStatus @default(PENDING)
+  description             String?
+  paystackReference       String?           @unique
+  paystackTransferId      String?           @unique
   reconciliationStartedAt DateTime?
   reconciliationCheckedAt DateTime?
-  reconciliationAttempt   Int          @default(0)
+  reconciliationAttempt   Int               @default(0)
   reconciliationError     String?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
 
-  company  Company   @relation(fields: [companyId], references: [id])
-  wallet   Wallet    @relation(fields: [walletId], references: [id])
-  employee Employee? @relation(fields: [employeeId], references: [id])
+  company         Company          @relation(fields: [companyId], references: [id])
+  wallet          Wallet           @relation(fields: [walletId], references: [id])
+  employee        Employee?        @relation(fields: [employeeId], references: [id])
   payrollEmployee PayrollEmployee? @relation(fields: [payrollEmployeeId], references: [id])
+  supportTickets  SupportTicket[]
 
   @@index([companyId])
   @@index([walletId])
@@ -279,4 +314,50 @@ model AuditLog {
   @@index([userId])
   @@index([entityType])
   @@index([createdAt])
+}
+
+model SupportTicket {
+  id            String                @id @default(uuid())
+  reference     String                @unique
+  companyId     String
+  createdById   String
+  payrollId     String?
+  transactionId String?
+  category      SupportTicketCategory
+  priority      SupportTicketPriority @default(NORMAL)
+  status        SupportTicketStatus   @default(OPEN)
+  subject       String
+  lastMessageAt DateTime              @default(now())
+  resolvedAt    DateTime?
+  closedAt      DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  company     Company          @relation(fields: [companyId], references: [id])
+  createdBy   User             @relation("SupportTicketCreatedBy", fields: [createdById], references: [id])
+  payroll     Payroll?         @relation(fields: [payrollId], references: [id])
+  transaction Transaction?     @relation(fields: [transactionId], references: [id])
+  messages    SupportMessage[]
+
+  @@index([companyId, status])
+  @@index([companyId, lastMessageAt])
+  @@index([createdById])
+  @@index([payrollId])
+  @@index([transactionId])
+}
+
+model SupportMessage {
+  id           String               @id @default(uuid())
+  ticketId     String
+  authorUserId String?
+  senderType   SupportMessageSender @default(CUSTOMER)
+  body         String
+  isInternal   Boolean              @default(false)
+  createdAt    DateTime             @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User?         @relation("SupportMessageAuthor", fields: [authorUserId], references: [id])
+
+  @@index([ticketId, createdAt])
+  @@index([authorUserId])
 }

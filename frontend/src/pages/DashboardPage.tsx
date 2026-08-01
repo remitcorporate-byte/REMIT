@@ -1,4 +1,4 @@
-import { Banknote, CalendarClock, Users, Wallet } from 'lucide-react'
+import { Banknote, CalendarClock, Check, Users, Wallet } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, formatNaira } from '../api'
 import { MetricCard } from '../components/MetricCard'
@@ -35,24 +35,24 @@ export function DashboardPage() {
 
   return (
     <PageState loading={dashboard.loading} error={dashboard.error} onRetry={dashboard.reload}>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="dashboard-metrics">
         <MetricCard title="Active employees" value={dashboard.data?.employeeCount || 0} icon={Users} />
         <MetricCard title="Available balance" value={formatNaira(dashboard.data?.availableBalance || 0)} icon={Wallet} />
         <MetricCard title="Payroll paid" value={formatNaira(paid)} icon={Banknote} />
         <MetricCard title="Scheduled runs" value={dashboard.data?.upcomingPayrolls.length || 0} icon={CalendarClock} />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
+      <div className="dashboard-primary-grid">
         <Card title="Cash movement" subtitle="Deposits versus payroll debit trends">
-          <div className="h-80">
+          <div className="dashboard-chart">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trends}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis tickFormatter={(value) => `${Number(value) / 1000000}m`} />
+              <AreaChart data={trends} margin={{ top: 8, right: 4, bottom: 0, left: -12 }}>
+                <CartesianGrid stroke="#e6dfda" strokeDasharray="3 4" vertical={false} />
+                <XAxis dataKey="month" interval="preserveStartEnd" minTickGap={16} tick={{ fill: '#766d73', fontSize: 10 }} axisLine={{ stroke: '#d8d0cc' }} tickLine={false} />
+                <YAxis width={48} tickFormatter={(value) => `${Number(value) / 1000000}m`} tick={{ fill: '#766d73', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <Tooltip formatter={(value) => formatNaira(Number(value))} />
-                <Area type="monotone" dataKey="deposits" stroke="#1d4ed8" fill="#dbeafe" />
-                <Area type="monotone" dataKey="payroll" stroke="#0f766e" fill="#ccfbf1" />
+                <Area type="monotone" dataKey="deposits" stroke="#2b132b" fill="#2b132b" fillOpacity={0.04} strokeWidth={2.2} />
+                <Area type="monotone" dataKey="payroll" stroke="#e85d2a" fill="#e85d2a" fillOpacity={0.05} strokeWidth={2.2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -64,11 +64,11 @@ export function DashboardPage() {
       </div>
 
       <Card title="Onboarding checklist" subtitle="Operational steps to get the first payroll out">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="onboarding-rail">
           {onboarding.map((item) => (
-            <div key={item.label} className={item.done ? 'rounded-lg border border-mint-200 bg-mint-50 p-3' : 'rounded-lg border border-slate-200 p-3'}>
-              <strong>{item.done ? 'Done' : 'Open'}</strong>
-              <p className="mt-1 text-sm text-slate-600">{item.label}</p>
+            <div key={item.label} className={item.done ? 'is-done' : ''}>
+              <strong>{item.done ? <Check size={16} strokeWidth={2.5} /> : onboarding.indexOf(item) + 1}</strong>
+              <p>{item.label}<span>{item.done ? 'Completed' : 'Pending'}</span></p>
             </div>
           ))}
         </div>

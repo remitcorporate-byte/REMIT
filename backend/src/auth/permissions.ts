@@ -23,6 +23,10 @@ export const permissionValues = [
   'transaction.read',
   'transaction.export',
   'notification.read',
+  'support.read',
+  'support.create',
+  'support.reply',
+  'support.close',
   'audit.read',
 ] as const;
 
@@ -39,6 +43,9 @@ const operatorReadPermissions: Permission[] = [
   'transaction.read',
   'transaction.export',
   'notification.read',
+  'support.read',
+  'support.create',
+  'support.reply',
 ];
 
 const payrollOperatorPermissions: Permission[] = [
@@ -60,6 +67,7 @@ const rolePermissions: Record<Role, readonly Permission[]> = {
     'company.manage',
     'team.manage',
     'employee.manage',
+    'support.close',
     'audit.read',
   ],
   ADMIN: [
@@ -67,6 +75,7 @@ const rolePermissions: Record<Role, readonly Permission[]> = {
     ...payrollOperatorPermissions,
     'company.manage',
     'employee.manage',
+    'support.close',
     'audit.read',
   ],
   FINANCE: [...operatorReadPermissions, ...payrollOperatorPermissions],

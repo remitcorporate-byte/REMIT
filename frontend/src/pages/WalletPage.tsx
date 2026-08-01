@@ -46,15 +46,15 @@ export function WalletPage() {
 
   return (
     <PageState loading={wallet.loading} error={wallet.error} onRetry={wallet.reload}>
-      <div className="flex items-center justify-between rounded-lg bg-gradient-to-br from-remit-600 to-mint-600 p-7 text-white shadow-soft">
+      <div className="wallet-balance-hero">
         <div>
-          <p className="text-blue-100">Available balance</p>
+          <p>Available balance</p>
           <h2 className="mt-2 text-5xl font-black tracking-normal">{formatNaira(wallet.data?.availableBalance || 0)}</h2>
-          <span className="mt-2 block text-sm text-blue-100">
+          <span>
             {formatNaira(wallet.data?.reservedBalance || 0)} reserved from {formatNaira(wallet.data?.balance || 0)} total
           </span>
         </div>
-        <Wallet size={54} />
+        <i><Wallet size={30} /></i>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         <Card title="Available" subtitle="Spendable after scheduled reserves">

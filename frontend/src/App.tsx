@@ -4,6 +4,7 @@ import { LoadingState } from './components/ui/LoadingState'
 import { useAuth } from './auth/AuthContext'
 import { appNavigation, type View } from './navigation/appNavigation'
 import { LandingPage } from './pages/LandingPage'
+import { EmployeeWebBoundary } from './pages/EmployeeWebBoundary'
 
 type PublicView = 'landing' | 'auth'
 type AuthMode = 'login' | 'register'
@@ -16,6 +17,7 @@ const PayrollPage = lazy(() => import('./pages/PayrollPage').then((module) => ({
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })))
 const TransactionsPage = lazy(() => import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage })))
 const WalletPage = lazy(() => import('./pages/WalletPage').then((module) => ({ default: module.WalletPage })))
+const SupportPage = lazy(() => import('./pages/SupportPage').then((module) => ({ default: module.SupportPage })))
 
 export default function App() {
   const { user, booting, can, setAuthenticatedUser, logout } = useAuth()
@@ -59,6 +61,8 @@ export default function App() {
     )
   }
 
+  if (user.role === 'EMPLOYEE') return <EmployeeWebBoundary onLogout={logout} />
+
   const activeRoute = navigation.find((item) => item.id === view) || navigation[0]
   if (!activeRoute) return <main className="p-8">This account has no application permissions.</main>
   const CurrentPage = viewComponents[activeRoute.id]
@@ -82,5 +86,6 @@ const viewComponents: Record<View, ComponentType> = {
   payrolls: PayrollPage,
   transactions: TransactionsPage,
   notifications: NotificationsPage,
+  support: SupportPage,
   settings: SettingsPage,
 }

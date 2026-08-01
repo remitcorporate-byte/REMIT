@@ -6,7 +6,7 @@ import { StatusPill } from './ui/StatusPill'
 export function TransactionsTable({ rows, compact = false }: { rows: Transaction[]; compact?: boolean }) {
   return (
     <>
-      <div className="overflow-x-auto">
+      <div className="transactions-table-scroll overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
@@ -29,6 +29,21 @@ export function TransactionsTable({ rows, compact = false }: { rows: Transaction
             ))}
           </tbody>
         </table>
+      </div>
+      <div className="transactions-mobile-list">
+        {rows.map((row) => (
+          <article key={row.id}>
+            <div>
+              <strong>{row.type.replaceAll('_', ' ')}</strong>
+              <time>{formatDate(row.createdAt)}</time>
+            </div>
+            <div>
+              <strong>{formatNaira(row.amount)}</strong>
+              <StatusPill value={row.status} />
+            </div>
+            {!compact && <p>{row.description || row.employee?.email || 'No description'}</p>}
+          </article>
+        ))}
       </div>
       <EmptyState show={!rows.length} text="No transactions yet." />
     </>

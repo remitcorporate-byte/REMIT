@@ -1,14 +1,10 @@
 import { ReactNode, useState } from 'react'
-import {
-  LogOut,
-  Menu,
-  ShieldCheck,
-  X,
-} from 'lucide-react'
+import { ArrowRight, LogOut, Menu, X } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAuth } from '../auth/AuthContext'
 import type { NavigationItem, View } from '../navigation/appNavigation'
 import type { User } from '../types'
+import './operations.css'
 
 export function AppShell({ navigation, view, onViewChange, onLogout, children }: {
   navigation: NavigationItem[]
@@ -17,78 +13,54 @@ export function AppShell({ navigation, view, onViewChange, onLogout, children }:
   onLogout: () => void
   children: ReactNode
 }) {
-  const { user } = useAuth()
+  const { user, can } = useAuth()
   const [open, setOpen] = useState(false)
   const current = navigation.find((item) => item.id === view) || navigation[0]
   if (!user || !current) return null
 
   return (
-    <div className="min-h-screen bg-slate-100 lg:grid lg:grid-cols-[280px_1fr]">
-      <aside className={clsx('fixed inset-y-0 left-0 z-30 w-[min(86vw,320px)] border-r border-slate-200 bg-white p-5 transition lg:sticky lg:top-0 lg:h-screen lg:w-auto lg:translate-x-0', open ? 'translate-x-0' : '-translate-x-full')}>
-        <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-lg bg-remit-600 font-black text-white">R</div>
-          <div className="min-w-0">
-            <strong className="block text-ink">REMIT</strong>
-            <span className="block text-xs text-slate-500">Payroll command center</span>
-          </div>
-          <button className="icon-button ml-auto lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu">
-            <X size={19} />
-          </button>
+    <div className="operations-shell">
+      <aside className={clsx('operations-sidebar', open ? 'is-open' : '')}>
+        <div className="operations-brand">
+          <span aria-hidden="true"><i /><i /><i /><i /></span>
+          <strong>REMIT</strong>
+          <button onClick={() => setOpen(false)} aria-label="Close menu"><X size={19} /></button>
         </div>
 
-        <nav className="mt-7 grid gap-2">
+        <nav className="operations-nav" aria-label="Operations navigation">
           {navigation.map((item) => {
             const Icon = item.icon
             return (
-              <button
-                key={item.id}
-                className={clsx('flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-semibold transition', view === item.id ? 'bg-remit-50 text-remit-600' : 'text-slate-600 hover:bg-slate-50')}
-                onClick={() => {
-                  onViewChange(item.id)
-                  setOpen(false)
-                }}
-              >
-                <Icon size={19} />
-                {item.label}
+              <button key={item.id} className={view === item.id ? 'is-active' : ''} onClick={() => { onViewChange(item.id); setOpen(false) }}>
+                <Icon size={19} strokeWidth={1.8} />
+                <span>{item.label}</span>
               </button>
             )
           })}
         </nav>
 
-        <div className="absolute bottom-5 left-5 right-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm shadow-soft">
-          <ShieldCheck className="mb-2 text-remit-600" size={22} />
-          <strong className="block">Paystack-ready</strong>
-          <span className="mt-1 block text-slate-500">Wallet funding, recipients, payroll scheduling, and webhooks map to the backend.</span>
+        <div className="operations-user">
+          <span>{initials(user)}</span>
+          <div><strong>{user.firstName} {user.lastName}</strong><small>{user.companyName || user.company?.name || 'REMIT company'}</small><em>{user.role}</em></div>
+          <button onClick={onLogout} aria-label="Log out"><LogOut size={18} /></button>
         </div>
       </aside>
 
-      {open && <button className="fixed inset-0 z-20 bg-slate-950/40 lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu" />}
+      {open ? <button className="operations-overlay" onClick={() => setOpen(false)} aria-label="Close menu" /> : null}
 
-      <main className="min-w-0">
-        <header className="sticky top-0 z-10 flex flex-col gap-4 border-b border-slate-200 bg-slate-100/90 px-5 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between lg:px-7">
-          <div className="flex items-start gap-3">
-            <button className="icon-button lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
-              <Menu size={20} />
-            </button>
-            <div>
-              <p className="text-sm text-slate-500">{current.label}</p>
-              <h1 className="text-xl font-bold tracking-normal text-ink sm:text-2xl">{current.headline}</h1>
-            </div>
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-remit-100 font-black text-remit-600">{initials(user)}</span>
-              <div className="min-w-0">
-                <strong className="block truncate text-sm">{user.firstName} {user.lastName}</strong>
-                <small className="block truncate text-xs text-slate-500">{user.companyName || user.company?.name || 'REMIT company'}</small>
-              </div>
-            </div>
-            <button className="icon-button" onClick={onLogout} aria-label="Log out">
-              <LogOut size={19} />
-            </button>
-          </div>
+      <main className="operations-main">
+        <header className="operations-mobile-header">
+          <button onClick={() => setOpen(true)} aria-label="Open menu"><Menu size={21} /></button>
+          <div className="operations-mobile-wordmark"><i /> REMIT</div>
+          <span>{initials(user)}</span>
         </header>
-        <section className="grid gap-5 p-5 lg:p-7">{children}</section>
+        <div className="operations-page-heading">
+          <div><p>{current.label}</p><h1>{current.headline}</h1></div>
+          {can('payroll.create') && view !== 'payrolls' ? (
+            <button className="btn-primary" onClick={() => onViewChange('payrolls')}>Run payroll <ArrowRight size={17} /></button>
+          ) : null}
+        </div>
+        <section className="operations-content">{children}</section>
       </main>
     </div>
   )

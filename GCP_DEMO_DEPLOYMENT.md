@@ -5,9 +5,12 @@ and is isolated under the `remit-demo-*` resource prefix.
 
 ## Live services
 
-- Web: `https://remit-demo-web-lan6d2dq6a-uc.a.run.app`
+- Web: `https://remit-demo-web-885118931429.us-central1.run.app`
+- Web alternate Cloud Run URL: `https://remit-demo-web-lan6d2dq6a-uc.a.run.app`
 - API: `https://remit-demo-api-885118931429.us-central1.run.app`
 - API readiness: `https://remit-demo-api-885118931429.us-central1.run.app/api/v1/ready`
+
+The API `FRONTEND_URL` CORS setting must contain both web origins as a comma-separated value because Cloud Run serves the same frontend from both hostnames.
 
 The API uses the existing Supabase database, Paystack mock mode, and the
 in-process payroll queue. It runs with one minimum and one maximum Cloud Run

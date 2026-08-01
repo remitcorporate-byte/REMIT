@@ -4,6 +4,7 @@ import {
   CreditCard,
   LayoutDashboard,
   Settings,
+  LifeBuoy,
   Users,
   Wallet,
   type LucideIcon,
@@ -17,6 +18,7 @@ export type View =
   | 'payrolls'
   | 'transactions'
   | 'notifications'
+  | 'support'
   | 'settings'
 
 export type NavigationItem = {
@@ -69,6 +71,13 @@ export const appNavigation: NavigationItem[] = [
     headline: 'Operational alerts',
     icon: Bell,
     permission: 'notification.read',
+  },
+  {
+    id: 'support',
+    label: 'Support',
+    headline: 'Get help and track resolutions',
+    icon: LifeBuoy,
+    permission: 'support.read',
   },
   {
     id: 'settings',

@@ -17,8 +17,8 @@ app.set('trust proxy', 1);
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: config.frontendUrl
-    ? config.frontendUrl
+  origin: config.frontendUrls.length > 0
+    ? config.frontendUrls
     : config.env === 'development'
       ? true
       : false,

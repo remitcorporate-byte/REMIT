@@ -1,48 +1,39 @@
 import { FormEvent, useState } from 'react'
-import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
-import { api } from '../api'
+import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, Loader2, LockKeyhole } from 'lucide-react'
+import { api, authStore } from '../api'
 import type { User } from '../types'
-import { Field } from '../components/ui/Field'
 import { Notice } from '../components/ui/Notice'
+import './auth.css'
 
 type Mode = 'login' | 'register'
 
-export function AuthScreen({
-  onAuthed,
-  initialMode = 'login',
-  onBack,
-}: {
+function AuthBrand() {
+  return <span className="auth-brand"><span aria-hidden="true"><i /><i /><i /><i /></span><strong>REMIT</strong></span>
+}
+
+export function AuthScreen({ onAuthed, initialMode = 'login', onBack }: {
   onAuthed: (user: User) => void
   initialMode?: Mode
   onBack?: () => void
 }) {
   const [mode, setMode] = useState<Mode>(initialMode)
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
-  const [form, setForm] = useState({
-    email: '',
-    password: '',
-    firstName: '',
-    lastName: '',
-    companyName: '',
-  })
+  const [form, setForm] = useState({ email: '', password: '', firstName: '', lastName: '', companyName: '' })
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     setLoading(true)
     setError('')
-
     try {
-      const user =
-        mode === 'login'
-          ? await api.login(form.email, form.password)
-          : await api.register({
-              email: form.email,
-              password: form.password,
-              firstName: form.firstName,
-              lastName: form.lastName,
-              companyName: form.companyName,
-            })
+      const user = mode === 'login'
+        ? await api.login(form.email.trim().toLowerCase(), form.password)
+        : await api.register({ ...form, email: form.email.trim().toLowerCase() })
+      if (user.role === 'EMPLOYEE') {
+        authStore.clear()
+        throw new Error('Employee accounts use the REMIT mobile app. This web workspace is for payroll operations.')
+      }
       onAuthed(user)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed')
@@ -51,73 +42,74 @@ export function AuthScreen({
     }
   }
 
+  const changeMode = (nextMode: Mode) => {
+    setMode(nextMode)
+    setError('')
+  }
+
   return (
-    <main className="grid min-h-screen bg-slate-950 lg:grid-cols-[1fr_minmax(360px,520px)]">
-      <section
-        className="flex min-h-[520px] flex-col justify-between bg-cover bg-center p-7 text-white sm:p-12"
-        style={{
-          backgroundImage:
-            'linear-gradient(135deg, rgba(15,23,42,.76), rgba(29,78,216,.58)), url("https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=1600&q=80")',
-        }}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-remit-600 font-black">R</div>
-            <div>
-              <strong className="block">REMIT</strong>
-              <span className="text-sm text-blue-100">Nigerian payroll operations</span>
-            </div>
+    <main className="auth-page">
+      <section className="auth-story">
+        <AuthBrand />
+        {onBack && <button className="auth-back" onClick={onBack}><ArrowLeft size={18} /> Back to home</button>}
+        <div className="auth-story-copy">
+          <h1>Payday,<br />under control.</h1>
+          <p>One workspace for funding, approvals, employee payments, and reconciliation.</p>
+          <div className="auth-story-steps">
+            {['Prepare with confidence', 'Approve with the right role', 'Track every outcome'].map((label) => (
+              <span key={label}><i><Check size={17} /></i>{label}</span>
+            ))}
           </div>
-          {onBack && <button className="inline-flex items-center gap-2 text-sm font-bold text-blue-100 hover:text-white" onClick={onBack}><ArrowLeft size={17} /> Home</button>}
         </div>
-        <div className="max-w-3xl">
-          <p className="mb-5 text-lg text-blue-100">Payroll, wallet funding, employee records, approvals, and transaction history in one API-connected workspace.</p>
-          <h1 className="max-w-4xl text-5xl font-black leading-none tracking-normal sm:text-7xl">Pay teams with clarity before money leaves the wallet.</h1>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {['Live API', 'Kobo-safe', 'Paystack'].map((value) => (
-            <div key={value} className="rounded-lg border border-white/20 bg-slate-950/50 p-4 backdrop-blur">
-              <span className="text-sm text-slate-300">REMIT frontend</span>
-              <strong className="mt-1 block text-xl">{value}</strong>
-            </div>
-          ))}
-        </div>
+        <div className="auth-flow-art" aria-hidden="true"><i /><i /><i /><i /><span><Check /></span></div>
       </section>
 
-      <section className="m-0 self-center bg-white p-7 shadow-soft sm:m-8 sm:rounded-lg">
-        <div className="grid grid-cols-2 gap-1 rounded-lg bg-remit-50 p-1">
-          <button className={mode === 'login' ? 'rounded-md bg-white py-3 font-bold text-remit-600 shadow' : 'py-3 font-bold text-slate-500'} onClick={() => setMode('login')}>Sign in</button>
-          <button className={mode === 'register' ? 'rounded-md bg-white py-3 font-bold text-remit-600 shadow' : 'py-3 font-bold text-slate-500'} onClick={() => setMode('register')}>Create account</button>
-        </div>
-        <h2 className="mt-6 text-3xl font-black tracking-normal">{mode === 'login' ? 'Welcome back' : 'Start your company workspace'}</h2>
-        <p className="mt-2 text-sm text-slate-500">Connected to {import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}.</p>
-        <form onSubmit={submit} className="mt-6 grid gap-4">
-          {mode === 'register' && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="First name" value={form.firstName} onChange={(firstName) => setForm({ ...form, firstName })} autoComplete="given-name" required />
-              <Field label="Last name" value={form.lastName} onChange={(lastName) => setForm({ ...form, lastName })} autoComplete="family-name" required />
-              <div className="sm:col-span-2">
-                <Field label="Company name" value={form.companyName} onChange={(companyName) => setForm({ ...form, companyName })} autoComplete="organization" required />
+      <section className="auth-form-side">
+        <div className="auth-form-wrap">
+          <div className="auth-mobile-brand"><AuthBrand />{onBack && <button onClick={onBack}><ArrowLeft size={18} /> Home</button>}</div>
+          <h2>{mode === 'login' ? 'Welcome back' : 'Create your workspace'}</h2>
+          <p>{mode === 'login' ? 'Sign in to continue to your payroll workspace.' : 'Set up your company and prepare your first payroll run.'}</p>
+
+          <form onSubmit={submit} className="auth-form">
+            {mode === 'register' && (
+              <div className="auth-name-grid">
+                <AuthField label="First name" value={form.firstName} onChange={(firstName) => setForm({ ...form, firstName })} autoComplete="given-name" />
+                <AuthField label="Last name" value={form.lastName} onChange={(lastName) => setForm({ ...form, lastName })} autoComplete="family-name" />
               </div>
-            </div>
-          )}
-          <Field label="Email" type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} autoComplete="email" required />
-          <Field
-            label="Password"
-            type="password"
-            value={form.password}
-            onChange={(password) => setForm({ ...form, password })}
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            required
-          />
-          {error && <Notice tone="danger" title="Request failed">{error}</Notice>}
-          <button className="btn-primary" disabled={loading}>
-            {loading && <Loader2 className="animate-spin" size={18} />}
-            {mode === 'login' ? 'Sign in' : 'Create workspace'}
-            <ArrowRight size={18} />
-          </button>
-        </form>
+            )}
+            {mode === 'register' && <AuthField label="Company name" value={form.companyName} onChange={(companyName) => setForm({ ...form, companyName })} autoComplete="organization" />}
+            <AuthField label="Work email" type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} autoComplete="email" />
+            <label className="auth-field">
+              <span>Password</span>
+              <div className="auth-password">
+                <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} required />
+                <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((value) => !value)}>{showPassword ? <EyeOff /> : <Eye />}</button>
+              </div>
+            </label>
+
+            {error && <Notice tone="danger" title="Could not sign in">{error}</Notice>}
+            <button className="auth-submit" disabled={loading}>
+              {loading ? <Loader2 className="animate-spin" size={19} /> : <>{mode === 'login' ? 'Sign in' : 'Create workspace'} <ArrowRight size={19} /></>}
+            </button>
+          </form>
+
+          <p className="auth-switch">
+            {mode === 'login' ? 'New to REMIT?' : 'Already have an account?'}{' '}
+            <button onClick={() => changeMode(mode === 'login' ? 'register' : 'login')}>{mode === 'login' ? 'Create an account' : 'Sign in'}</button>
+          </p>
+          <span className="auth-trust"><LockKeyhole size={17} /> Protected by role-based access</span>
+        </div>
       </section>
     </main>
   )
+}
+
+function AuthField({ label, value, onChange, type = 'text', autoComplete }: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  type?: string
+  autoComplete?: string
+}) {
+  return <label className="auth-field"><span>{label}</span><input type={type} value={value} onChange={(event) => onChange(event.target.value)} autoComplete={autoComplete} required /></label>
 }

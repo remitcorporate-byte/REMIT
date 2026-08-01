@@ -18,32 +18,23 @@ export function EmployeesPage() {
 
   return (
     <PageState loading={employees.loading} error={employees.error} onRetry={employees.reload}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <label className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2">
-          <Search size={18} className="text-slate-400" />
-          <input className="w-full bg-transparent outline-none" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search employees by name or email" />
-        </label>
-        <Can permission="employee.manage">
-          <button className="btn-primary" onClick={() => setShowForm(true)}>
-            <Plus size={18} /> Add employee
-          </button>
-        </Can>
-      </div>
+      <div className={`employee-workspace ${showForm || editing ? 'is-editing' : ''}`}>
+        <div className="employee-list-pane">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <label className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2">
+              <Search size={18} className="text-slate-400" />
+              <input className="w-full bg-transparent outline-none" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search employees by name or email" />
+            </label>
+            <Can permission="employee.manage">
+              <button className="btn-primary" onClick={() => { setEditing(null); setShowForm(true) }}>
+                <Plus size={18} /> Add employee
+              </button>
+            </Can>
+          </div>
 
-      {(showForm || editing) && (
-        <EmployeeForm
-          employee={editing}
-          onClose={() => {
-            setShowForm(false)
-            setEditing(null)
-          }}
-          onDone={employees.reload}
-        />
-      )}
-
-      <Card title="Employees" subtitle={`${employees.data?.length || 0} active team members`}>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <Card title="Employees" subtitle={`${employees.data?.length || 0} active team members`}>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
                 <th className="px-3 py-3">Name</th>
@@ -87,10 +78,23 @@ export function EmployeesPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+              </table>
+            </div>
+            <EmptyState show={!employees.data?.length} text="Add employees to unlock payroll scheduling." />
+          </Card>
         </div>
-        <EmptyState show={!employees.data?.length} text="Add employees to unlock payroll scheduling." />
-      </Card>
+
+        {(showForm || editing) && (
+          <EmployeeForm
+            employee={editing}
+            onClose={() => {
+              setShowForm(false)
+              setEditing(null)
+            }}
+            onDone={employees.reload}
+          />
+        )}
+      </div>
     </PageState>
   )
 }
@@ -151,7 +155,7 @@ function EmployeeForm({ employee, onClose, onDone }: { employee?: Employee | nul
   }
 
   return (
-    <form className="card bg-slate-50" onSubmit={submit}>
+    <form className="employee-editor" onSubmit={submit}>
       <div className="mb-5 flex items-start justify-between gap-3">
         <div>
           <h3 className="text-xl font-bold">{employee ? 'Edit employee' : 'Add employee'}</h3>

@@ -1,5 +1,13 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowRight, Check, Menu, ShieldCheck, X } from 'lucide-react'
+import {
+  ArrowDownRight,
+  ArrowRight,
+  Check,
+  CircleCheck,
+  Menu,
+  ShieldCheck,
+  X,
+} from 'lucide-react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import './landing.css'
@@ -10,30 +18,37 @@ type LandingPageProps = {
   onAuth: (mode: AuthMode) => void
 }
 
+const payrollRows = [
+  ['Aisha Adeyemi', 'Product Designer', '₦850,000'],
+  ['Oluwatosin Ogunleye', 'Backend Engineer', '₦950,000'],
+  ['Blessing Anokwuru', 'Product Manager', '₦1,200,000'],
+  ['Ifeanyi Chukwu', 'Data Analyst', '₦650,000'],
+]
+
 const payrollSteps = [
-  {
-    number: '01',
-    name: 'Fund',
-    detail: 'Add money to a dedicated wallet before the run begins.',
-  },
-  {
-    number: '02',
-    name: 'Prepare',
-    detail: 'Build payroll from verified employee and bank details.',
-  },
-  {
-    number: '03',
-    name: 'Approve',
-    detail: 'Release funds only through the roles you have assigned.',
-  },
-  {
-    number: '04',
-    name: 'Reconcile',
-    detail: 'Track each transfer through completion, failure, or reversal.',
-  },
+  ['01', 'Fund', 'Load the payroll wallet'],
+  ['02', 'Prepare', 'Confirm people and amounts'],
+  ['03', 'Approve', 'Release with the right role'],
+  ['04', 'Reconcile', 'See every final outcome'],
+]
+
+const permissions = [
+  ['Create payroll', true, true, true, false, false],
+  ['Approve payroll', true, true, true, false, false],
+  ['View wallet', true, true, true, true, true],
+  ['Manage team', true, true, false, false, false],
 ]
 
 const roles = ['Owner', 'Admin', 'Finance', 'Viewer', 'Employee']
+
+function RemitMark() {
+  return (
+    <span className="remit-brand" aria-label="REMIT">
+      <span className="remit-mark" aria-hidden="true"><i /><i /><i /><i /></span>
+      <strong>REMIT</strong>
+    </span>
+  )
+}
 
 export function LandingPage({ onAuth }: LandingPageProps) {
   const root = useRef<HTMLDivElement>(null)
@@ -41,65 +56,22 @@ export function LandingPage({ onAuth }: LandingPageProps) {
 
   useLayoutEffect(() => {
     gsap.registerPlugin(ScrollTrigger)
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduceMotion) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
     const context = gsap.context(() => {
-      gsap
-        .timeline({ defaults: { ease: 'power3.out' } })
-        .from('.landing-nav', { y: -24, opacity: 0, duration: 0.7 })
-        .from('.landing-hero-line', { yPercent: 115, duration: 0.9, stagger: 0.08 }, '-=0.25')
-        .from('.landing-hero-copy, .landing-hero-actions', { y: 24, opacity: 0, duration: 0.65 }, '-=0.45')
-        .from('.landing-hero-art', { x: 80, rotate: 2, opacity: 0, duration: 1 }, '-=0.85')
-
-      gsap.to('.landing-hero-art', {
-        yPercent: 11,
-        ease: 'none',
-        scrollTrigger: {
-          trigger: '.landing-hero',
-          start: 'top top',
-          end: 'bottom top',
-          scrub: 0.7,
-        },
-      })
+      gsap.timeline({ defaults: { ease: 'power3.out' } })
+        .from('.landing-nav', { y: -20, opacity: 0, duration: 0.65 })
+        .from('.landing-hero-copy > *', { y: 30, opacity: 0, stagger: 0.08, duration: 0.65 }, '-=0.3')
+        .from('.payroll-preview', { x: 55, opacity: 0, duration: 0.85 }, '-=0.7')
 
       gsap.utils.toArray<HTMLElement>('[data-reveal]').forEach((element) => {
         gsap.from(element, {
-          y: 56,
+          y: 42,
           opacity: 0,
-          duration: 0.8,
+          duration: 0.75,
           ease: 'power3.out',
-          scrollTrigger: {
-            trigger: element,
-            start: 'top 84%',
-            once: true,
-          },
+          scrollTrigger: { trigger: element, start: 'top 86%', once: true },
         })
-      })
-
-      gsap.from('.landing-step', {
-        xPercent: 22,
-        opacity: 0,
-        stagger: 0.12,
-        ease: 'power3.out',
-        scrollTrigger: {
-          trigger: '.landing-flow-track',
-          start: 'top 75%',
-          end: 'bottom 70%',
-          scrub: 0.5,
-        },
-      })
-
-      gsap.to('.landing-role-art', {
-        xPercent: -4,
-        rotate: -0.8,
-        ease: 'none',
-        scrollTrigger: {
-          trigger: '.landing-roles',
-          start: 'top bottom',
-          end: 'bottom top',
-          scrub: 0.8,
-        },
       })
     }, root)
 
@@ -114,139 +86,119 @@ export function LandingPage({ onAuth }: LandingPageProps) {
   return (
     <div className="landing" ref={root}>
       <header className="landing-nav">
-        <button className="landing-wordmark" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-          REMIT
+        <button className="landing-brand-button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+          <RemitMark />
         </button>
         <nav className={menuOpen ? 'landing-nav-links is-open' : 'landing-nav-links'} aria-label="Main navigation">
+          <button onClick={() => navigateTo('product')}>Product</button>
           <button onClick={() => navigateTo('how-it-works')}>How it works</button>
-          <button onClick={() => navigateTo('control')}>Control</button>
           <button onClick={() => navigateTo('security')}>Security</button>
         </nav>
         <div className="landing-nav-actions">
-          <button className="landing-text-button" onClick={() => onAuth('login')}>Sign in</button>
-          <button className="landing-button landing-button-primary" onClick={() => onAuth('register')}>
-            Start payroll <ArrowRight size={18} />
-          </button>
+          <button className="landing-button landing-button-quiet" onClick={() => onAuth('login')}>Sign in</button>
+          <button className="landing-button landing-button-primary" onClick={() => onAuth('register')}>Run payroll</button>
         </div>
-        <button
-          className="landing-menu-button"
-          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((open) => !open)}
-        >
+        <button className="landing-menu-button" aria-label={menuOpen ? 'Close menu' : 'Open menu'} aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}>
           {menuOpen ? <X /> : <Menu />}
         </button>
       </header>
 
       <main>
-        <section className="landing-hero">
-          <div className="landing-hero-content">
-            <h1>
-              <span className="landing-line-mask"><span className="landing-hero-line">PAYDAY,</span></span>
-              <span className="landing-line-mask"><span className="landing-hero-line landing-blue">WITHOUT</span></span>
-              <span className="landing-line-mask"><span className="landing-hero-line landing-blue">THE PANIC.</span></span>
-            </h1>
-            <p className="landing-hero-copy">
-              Fund your wallet, approve payroll, pay every employee, and reconcile every transfer from one clear workspace.
-            </p>
+        <section className="landing-hero" id="product">
+          <div className="landing-hero-copy">
+            <h1>Payroll that <span>lands.</span><br />Every time.</h1>
+            <p>Fund, approve, pay, and reconcile your team from one controlled workspace.</p>
             <div className="landing-hero-actions">
-              <button className="landing-button landing-button-primary" onClick={() => onAuth('register')}>
-                Start payroll <ArrowRight size={20} />
-              </button>
-              <button className="landing-link-button" onClick={() => navigateTo('how-it-works')}>
-                How it works <ArrowDown size={19} />
-              </button>
+              <button className="landing-button landing-button-primary" onClick={() => onAuth('register')}>Run payroll <ArrowRight size={18} /></button>
+              <button className="landing-button landing-button-outline" onClick={() => navigateTo('how-it-works')}>See how it works <ArrowDownRight size={18} /></button>
             </div>
           </div>
-          <img
-            className="landing-hero-art"
-            src="/landing/remit-payroll-motion.png"
-            alt="Payroll wallet, payment cards, employee profiles, and transfer receipts moving through REMIT"
-          />
-          <div className="landing-hero-edge" aria-hidden="true">
-            <span>Wallet funded</span>
-            <span>Employees prepared</span>
-            <span>Approvals complete</span>
-            <span>Transfers reconciled</span>
+
+          <div className="payroll-preview" aria-label="REMIT payroll overview preview">
+            <div className="preview-sidebar">
+              <RemitMark />
+              {['Overview', 'Wallet', 'Employees', 'Payroll', 'Approvals', 'Reconciliation'].map((item, index) => (
+                <span className={index === 0 ? 'is-active' : ''} key={item}>{item}</span>
+              ))}
+              <small>Acme Ltd.</small>
+            </div>
+            <div className="preview-main">
+              <div className="preview-heading"><h2>Payroll overview</h2><button>Review payroll</button></div>
+              <div className="preview-stats">
+                <div className="is-mint"><small>Ready to approve</small><strong>12 employees</strong></div>
+                <div className="is-orange"><small>Payroll amount</small><strong>₦8,450,000</strong></div>
+                <div><small>Approval progress</small><strong>2 of 3</strong><span className="progress"><i /></span></div>
+              </div>
+              <div className="preview-table">
+                <div className="preview-table-head"><span>Employee</span><span>Role</span><span>Net pay</span><span>Status</span></div>
+                {payrollRows.map(([name, role, amount], index) => (
+                  <div className="preview-row" key={name}>
+                    <span><i>{name.split(' ').map((part) => part[0]).join('')}</i>{name}</span>
+                    <span>{role}</span><span>{amount}</span><span><em>{index < 3 ? 'Ready' : 'Review'}</em></span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 
         <section className="landing-flow" id="how-it-works">
-          <div className="landing-flow-heading" data-reveal>
-            <h2>FROM FUNDED<br /><span>TO FINISHED.</span></h2>
-            <p>One controlled flow. Every decision visible.</p>
+          <div className="landing-section-heading" data-reveal>
+            <h2>One run. Full control.</h2>
+            <p>Every stage of payroll stays connected, visible, and accountable.</p>
           </div>
-          <p className="landing-flow-intro" data-reveal>
-            Wallet balance, role-based approvals, Paystack transfers, and automatic reconciliation stay connected.
-          </p>
-          <div className="landing-flow-track">
-            {payrollSteps.map((step) => (
-              <article className="landing-step" key={step.number}>
-                <div className="landing-step-marker"><Check size={20} /></div>
-                <div className="landing-step-title">
-                  <strong>{step.number}</strong>
-                  <h3>{step.name}</h3>
-                </div>
-                <p>{step.detail}</p>
+          <div className="landing-flow-track" data-reveal>
+            {payrollSteps.map(([number, title, detail], index) => (
+              <article className="landing-step" key={number}>
+                <div><strong>{number}</strong>{index < payrollSteps.length - 1 && <ArrowRight aria-hidden="true" />}</div>
+                <h3>{title}</h3><p>{detail}</p>
               </article>
             ))}
           </div>
-          <div className="landing-status-rail" id="security" data-reveal>
-            <ShieldCheck aria-hidden="true" />
-            <strong>Built for controlled money movement</strong>
-            <span>Permission-based access</span>
-            <span>Signed Paystack webhooks</span>
-            <span>Durable payroll queue</span>
-            <span>Transfer reconciliation</span>
+        </section>
+
+        <section className="landing-control">
+          <div className="landing-control-copy" data-reveal>
+            <h2>The right access<br />at the right moment.</h2>
+            <p>Owners set policy. Finance prepares. Approvers release. Every role sees only what it needs.</p>
+          </div>
+          <div className="role-matrix" data-reveal>
+            <div className="role-row role-head"><span>Permission</span>{roles.map((role) => <strong key={role}>{role}</strong>)}</div>
+            {permissions.map(([label, ...values]) => (
+              <div className={label === 'Approve payroll' ? 'role-row is-highlighted' : 'role-row'} key={String(label)}>
+                <span>{label}</span>{values.map((allowed, index) => <i key={roles[index]}>{allowed ? <Check size={18} /> : '—'}</i>)}
+              </div>
+            ))}
           </div>
         </section>
 
-        <section className="landing-roles" id="control">
-          <div className="landing-role-copy" data-reveal>
-            <h2>CONTROL<br /><span>FOR THE PEOPLE</span><br /><span>WHO CARRY PAYDAY.</span></h2>
-            <p>
-              Owners set the rules. Finance prepares the run. Approvers release it. Everyone sees only what their role allows.
-            </p>
-          </div>
-          <div className="landing-role-media" data-reveal>
-            <span className="landing-role-ghost" aria-hidden="true">PAYDAY</span>
-            <img
-              className="landing-role-art"
-              src="/landing/remit-role-team.png"
-              alt="Five Nigerian professionals representing REMIT access roles"
-            />
-            <div className="landing-role-labels" aria-label="Supported account roles">
-              {roles.map((role) => <span key={role}>{role}</span>)}
-            </div>
-          </div>
+        <section className="landing-security" id="security">
+          {([
+            ['Permission-based access', ShieldCheck],
+            ['Signed Paystack webhooks', CircleCheck],
+            ['Durable payroll processing', CircleCheck],
+            ['Transfer reconciliation', CircleCheck],
+          ] as const).map(([label, Icon]) => (
+            <div key={String(label)}><span><Icon size={22} /></span><strong>{label}</strong></div>
+          ))}
         </section>
 
         <section className="landing-closing">
-          <div className="landing-closing-copy" data-reveal>
-            <h2>MAKE THE NEXT<br /><span>PAYDAY BORING.</span></h2>
-            <p>That’s the point.</p>
-            <div className="landing-closing-actions">
-              <button className="landing-button landing-button-primary" onClick={() => onAuth('register')}>
-                Start payroll <ArrowRight size={20} />
-              </button>
-              <button className="landing-button landing-button-dark" onClick={() => onAuth('login')}>
-                Sign in <ArrowRight size={20} />
-              </button>
-            </div>
+          <div data-reveal><h2>Make the next payday<br />feel routine.</h2><p>Set up your workspace and run payroll with confidence.</p></div>
+          <div className="landing-closing-actions">
+            <button className="landing-button landing-button-primary" onClick={() => onAuth('register')}>Run payroll</button>
+            <button className="landing-button landing-button-outline" onClick={() => onAuth('login')}>Sign in</button>
           </div>
-          <div className="landing-closing-object" aria-hidden="true">
-            <span>R</span>
-          </div>
-          <ArrowRight className="landing-closing-arrow" size={90} aria-hidden="true" />
-          <footer className="landing-footer">
-            <strong>REMIT</strong>
-            <a href="#security">Security</a>
-            <a href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/health`}>API status</a>
-            <span>Privacy</span>
-            <small>Payroll operations for Nigerian companies.</small>
-          </footer>
         </section>
       </main>
+
+      <footer className="landing-footer">
+        <RemitMark />
+        <button onClick={() => navigateTo('product')}>Product</button>
+        <button onClick={() => navigateTo('security')}>Security</button>
+        <a href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/health`}>API status</a>
+        <small>Payroll operations for Nigerian companies.</small>
+      </footer>
     </div>
   )
 }

@@ -11,7 +11,7 @@ export function Notice({ title, children, tone = 'info' }: {
   const Icon = danger ? AlertTriangle : CheckCircle2
 
   return (
-    <div className={clsx('flex gap-3 rounded-lg border p-3 text-sm', danger ? 'border-red-200 bg-red-50 text-red-800' : 'border-blue-200 bg-blue-50 text-blue-800')}>
+    <div className={clsx('flex gap-3 rounded-lg border p-3 text-sm', danger ? 'border-red-200 bg-red-50 text-red-800' : 'border-mint-200 bg-mint-50 text-mint-700')}>
       <Icon size={18} />
       <div>
         <strong>{title}</strong>

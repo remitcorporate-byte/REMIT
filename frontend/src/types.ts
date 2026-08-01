@@ -23,6 +23,10 @@ export type Permission =
   | 'transaction.read'
   | 'transaction.export'
   | 'notification.read'
+  | 'support.read'
+  | 'support.create'
+  | 'support.reply'
+  | 'support.close'
   | 'audit.read'
 
 export type User = {
@@ -152,6 +156,43 @@ export type Notification = {
   type: string
   isRead: boolean
   createdAt: string
+}
+
+export type SupportTicketCategory =
+  | 'PAYMENT_FAILURE'
+  | 'WALLET_FUNDING'
+  | 'BANK_VERIFICATION'
+  | 'PAYROLL_ISSUE'
+  | 'ACCOUNT_ACCESS'
+  | 'GENERAL'
+
+export type SupportTicketStatus = 'OPEN' | 'IN_PROGRESS' | 'WAITING_FOR_CUSTOMER' | 'RESOLVED' | 'CLOSED'
+export type SupportTicketPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'
+
+export type SupportMessage = {
+  id: string
+  body: string
+  senderType: 'CUSTOMER' | 'SUPPORT' | 'SYSTEM'
+  createdAt: string
+  author?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email'> | null
+}
+
+export type SupportTicket = {
+  id: string
+  reference: string
+  category: SupportTicketCategory
+  priority: SupportTicketPriority
+  status: SupportTicketStatus
+  subject: string
+  lastMessageAt: string
+  createdAt: string
+  resolvedAt?: string | null
+  closedAt?: string | null
+  createdBy: Pick<User, 'id' | 'firstName' | 'lastName' | 'email'>
+  payroll?: Pick<Payroll, 'id' | 'status' | 'scheduledDate' | 'totalAmount'> | null
+  transaction?: Pick<Transaction, 'id' | 'type' | 'status' | 'amount' | 'description' | 'createdAt'> | null
+  messages: SupportMessage[]
+  _count?: { messages: number }
 }
 
 export type Dashboard = {

@@ -10,6 +10,9 @@ import type {
   Payroll,
   Stats,
   SystemStatus,
+  SupportTicket,
+  SupportTicketCategory,
+  SupportTicketPriority,
   TeamMember,
   TeamRole,
   Transaction,
@@ -75,7 +78,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   try {
     response = await fetch(`${API_URL}${path}`, { ...init, headers })
   } catch {
-    throw new Error('Cannot reach REMIT API. Start the backend or check VITE_API_URL.')
+    throw new Error('Cannot connect to REMIT right now. Check your connection and try again.')
   }
 
   const text = await response.text()
@@ -188,6 +191,26 @@ export const api = {
   markAllRead: () => request<ApiResponse<unknown>>('/notifications/read-all', { method: 'PUT' }),
   systemStatus: () => request<ApiResponse<SystemStatus>>('/company/system-status').then((r) => r.data),
   auditLog: () => request<ApiResponse<AuditLog[]>>('/company/audit-log?limit=50').then((r) => r.data),
+  supportTickets: () => request<Paginated<SupportTicket>>('/support/tickets?limit=100').then((r) => r.data),
+  supportTicket: (id: string) => request<ApiResponse<SupportTicket>>(`/support/tickets/${id}`).then((r) => r.data),
+  createSupportTicket: (input: {
+    category: SupportTicketCategory
+    priority: SupportTicketPriority
+    subject: string
+    message: string
+    payrollId?: string
+    transactionId?: string
+  }) => request<ApiResponse<SupportTicket>>('/support/tickets', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }).then((r) => r.data),
+  replyToSupportTicket: (id: string, message: string) =>
+    request<ApiResponse<SupportTicket>>(`/support/tickets/${id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    }).then((r) => r.data),
+  closeSupportTicket: (id: string) =>
+    request<ApiResponse<SupportTicket>>(`/support/tickets/${id}/close`, { method: 'PUT' }).then((r) => r.data),
 }
 
 export const formatNaira = (kobo = 0) =>

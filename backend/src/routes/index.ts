@@ -9,6 +9,7 @@ import transactionRoutes from './transaction.routes';
 import notificationRoutes from './notification.routes';
 import webhookRoutes from './webhook.routes';
 import teamRoutes from './team.routes';
+import supportRoutes from './support.routes';
 import { payrollQueue } from '../queues/payroll.queue';
 
 const router = Router();
@@ -65,5 +66,6 @@ router.use('/transactions', transactionRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/webhooks', webhookRoutes);
 router.use('/team', teamRoutes);
+router.use('/support', supportRoutes);
 
 export default router;
