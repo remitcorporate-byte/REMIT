@@ -5,7 +5,7 @@ and is isolated under the `remit-demo-*` resource prefix.
 
 ## Live services
 
-- Web: `https://remit-demo-web-885118931429.us-central1.run.app`
+- Web: `https://remit-demo-web-lan6d2dq6a-uc.a.run.app`
 - API: `https://remit-demo-api-885118931429.us-central1.run.app`
 - API readiness: `https://remit-demo-api-885118931429.us-central1.run.app/api/v1/ready`
 
