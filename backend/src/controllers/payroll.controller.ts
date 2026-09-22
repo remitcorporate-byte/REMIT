@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { PayrollStatus, Prisma, PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { AppError } from '../middleware/errorHandler';
-import { getPaginationParams, paginatedResponse } from '../utils/formatters';
+import { getPaginationParams, paginatedResponse, escapeCsvValue } from '../utils/formatters';
 import { payrollQueue } from '../queues/payroll.queue';
 import { auditService } from '../services/audit.service';
 
@@ -43,37 +43,39 @@ async function availableWalletBalance(
   };
 }
 
-async function reservePayrollFunds(payroll: { id: string; companyId: string; totalAmount: number }) {
-  await prisma.$transaction(async (tx) => {
-    const { wallet, availableBalance } = await availableWalletBalance(payroll.companyId, tx);
+async function reservePayrollFunds(
+  payroll: { id: string; companyId: string; totalAmount: number },
+  tx: Prisma.TransactionClient | PrismaClient = prisma
+) {
+  const { wallet, availableBalance } = await availableWalletBalance(payroll.companyId, tx);
 
-    if (!wallet || availableBalance < payroll.totalAmount) {
-      throw new AppError(
-        `Insufficient wallet balance. Required: ${payroll.totalAmount}, Available: ${availableBalance}`,
-        400
-      );
-    }
+  if (!wallet || availableBalance < payroll.totalAmount) {
+    throw new AppError(
+      `Insufficient wallet balance. Required: ${payroll.totalAmount}, Available: ${availableBalance}`,
+      400
+    );
+  }
 
-    await tx.wallet.update({
-      where: { id: wallet.id },
-      data: { reservedBalance: { increment: payroll.totalAmount } },
-    });
+  await tx.wallet.update({
+    where: { id: wallet.id },
+    data: { reservedBalance: { increment: payroll.totalAmount } },
   });
 }
 
-async function releasePayrollReservation(payroll: { companyId: string; totalAmount: number }) {
-  await prisma.$transaction(async (tx) => {
-    const { wallet } = await availableWalletBalance(payroll.companyId, tx);
-    if (!wallet || wallet.reservedBalance <= 0) return;
+async function releasePayrollReservation(
+  payroll: { companyId: string; totalAmount: number },
+  tx: Prisma.TransactionClient | PrismaClient = prisma
+) {
+  const { wallet } = await availableWalletBalance(payroll.companyId, tx);
+  if (!wallet || wallet.reservedBalance <= 0) return;
 
-    await tx.wallet.update({
-      where: { id: wallet.id },
-      data: {
-        reservedBalance: {
-          decrement: Math.min(wallet.reservedBalance, payroll.totalAmount),
-        },
+  await tx.wallet.update({
+    where: { id: wallet.id },
+    data: {
+      reservedBalance: {
+        decrement: Math.min(wallet.reservedBalance, payroll.totalAmount),
       },
-    });
+    },
   });
 }
 
@@ -293,17 +295,40 @@ export const approvePayroll = async (req: Request, res: Response, next: NextFunc
       }
     }
 
-    await reservePayrollFunds(payroll);
+    // Guarded transition: only one request can move this payroll from
+    // PENDING_APPROVAL to SCHEDULED, and the wallet reservation happens in the
+    // same transaction. Two concurrent approvals cannot double-reserve, and an
+    // approval racing a cancel cannot reserve funds for a cancelled payroll.
+    const approved = await prisma.$transaction(async (tx) => {
+      const transition = await tx.payroll.updateMany({
+        where: {
+          id: req.params.id as string,
+          companyId: req.user!.companyId!,
+          status: 'PENDING_APPROVAL',
+        },
+        data: {
+          status: 'SCHEDULED',
+          approvedAt: new Date(),
+          approvedById: req.user!.id,
+        },
+      });
 
-    const updated = await prisma.payroll.update({
-      where: { id: payroll.id },
-      data: {
-        status: 'SCHEDULED',
-        approvedAt: new Date(),
-        approvedById: req.user.id,
-      },
-      include: payrollInclude(),
+      if (transition.count !== 1) return null;
+
+      await reservePayrollFunds(payroll, tx);
+
+      return tx.payroll.findUnique({
+        where: { id: req.params.id as string },
+        include: payrollInclude(),
+      });
     });
+
+    if (!approved) {
+      throw new AppError(
+        'Payroll could not be approved. It may already be approved or cancelled.',
+        400
+      );
+    }
 
     await auditService.record({
       companyId: req.user.companyId,
@@ -314,11 +339,11 @@ export const approvePayroll = async (req: Request, res: Response, next: NextFunc
       metadata: { totalAmount: payroll.totalAmount, employeeCount: payroll.employeeCount },
     });
 
-    if (updated.scheduledDate <= new Date()) {
-      await payrollQueue.add('process-payroll', { payrollId: updated.id, companyId: req.user.companyId }, { jobId: updated.id });
+    if (approved.scheduledDate <= new Date()) {
+      await payrollQueue.add('process-payroll', { payrollId: approved.id, companyId: req.user.companyId }, { jobId: approved.id });
     }
 
-    res.json({ success: true, data: updated });
+    res.json({ success: true, data: approved });
   } catch (error) {
     next(error);
   }
@@ -387,15 +412,54 @@ export const cancelPayroll = async (req: Request, res: Response, next: NextFunct
       throw new AppError(`Cannot cancel payroll with status: ${payroll.status}`, 400);
     }
 
-    if (payroll.status === 'SCHEDULED') {
-      await releasePayrollReservation(payroll);
-    }
+    // Guarded transition: cancelling and releasing the reservation happen
+    // atomically, and only the request that wins the status transition may
+    // release funds. Racing the processing claim can no longer double-release
+    // the reservation or stamp CANCELLED on a payroll that has started paying.
+    const cancelled = await prisma.$transaction(async (tx) => {
+      // DRAFT and PENDING_APPROVAL payrolls never reserved funds.
+      const unreserved = await tx.payroll.updateMany({
+        where: {
+          id: req.params.id as string,
+          companyId: req.user!.companyId!,
+          status: { in: ['DRAFT', 'PENDING_APPROVAL'] },
+        },
+        data: { status: 'CANCELLED', cancelledAt: new Date() },
+      });
 
-    const updated = await prisma.payroll.update({
-      where: { id: payroll.id },
-      data: { status: 'CANCELLED', cancelledAt: new Date() },
-      include: payrollInclude(),
+      if (unreserved.count === 1) {
+        return tx.payroll.findUnique({
+          where: { id: req.params.id as string },
+          include: payrollInclude(),
+        });
+      }
+
+      // SCHEDULED payrolls hold a reservation — release it on cancel.
+      const scheduled = await tx.payroll.updateMany({
+        where: {
+          id: req.params.id as string,
+          companyId: req.user!.companyId!,
+          status: 'SCHEDULED',
+        },
+        data: { status: 'CANCELLED', cancelledAt: new Date() },
+      });
+
+      if (scheduled.count !== 1) return null;
+
+      await releasePayrollReservation(payroll, tx);
+
+      return tx.payroll.findUnique({
+        where: { id: req.params.id as string },
+        include: payrollInclude(),
+      });
     });
+
+    if (!cancelled) {
+      throw new AppError(
+        'Payroll could not be cancelled. It may already be processing or cancelled.',
+        400
+      );
+    }
 
     await auditService.record({
       companyId: req.user.companyId,
@@ -406,7 +470,7 @@ export const cancelPayroll = async (req: Request, res: Response, next: NextFunct
       metadata: { previousStatus: payroll.status },
     });
 
-    res.json({ success: true, data: updated });
+    res.json({ success: true, data: cancelled });
   } catch (error) {
     next(error);
   }
@@ -524,7 +588,7 @@ export const exportPayroll = async (req: Request, res: Response, next: NextFunct
 
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="payroll-${payroll.id}.csv"`);
-    res.send(rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n'));
+    res.send(rows.map((row) => row.map((value) => escapeCsvValue(value)).join(',')).join('\n'));
   } catch (error) {
     next(error);
   }

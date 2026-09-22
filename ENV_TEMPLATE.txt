@@ -14,6 +14,7 @@ FRONTEND_URL=http://localhost:5173
 # PostgreSQL connection string
 # Format: postgresql://username:password@host:5432/database?schema=public
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/remit?schema=public
+DIRECT_URL=postgresql://postgres:postgres@localhost:5432/remit?schema=public
 
 # ======================
 # JWT AUTHENTICATION
@@ -21,6 +22,16 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/remit?schema=public
 # Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 JWT_SECRET=your_super_secret_jwt_key_minimum_32_characters_long
 JWT_EXPIRE=30d
+
+# Platform staff tokens use a separate signing boundary from company accounts
+PLATFORM_JWT_SECRET=another_independent_32_character_secret
+PLATFORM_JWT_EXPIRE=12h
+
+# Used only when running `pnpm platform:seed-admin`
+PLATFORM_ADMIN_EMAIL=platform-admin@example.com
+PLATFORM_ADMIN_PASSWORD=replace_with_a_strong_12_plus_character_password
+PLATFORM_ADMIN_FIRST_NAME=Platform
+PLATFORM_ADMIN_LAST_NAME=Admin
 
 # ======================
 # GOOGLE OAUTH

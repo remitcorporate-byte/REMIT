@@ -10,15 +10,15 @@ import { getPermissions } from '../auth/permissions';
 const prisma = new PrismaClient();
 
 const registerSchema = z.object({
-  email: z.string().email('Invalid email'),
+  email: z.string().email('Invalid email').transform((val) => val.toLowerCase().trim()),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-  firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
-  companyName: z.string().min(1, 'Company name is required'),
+  firstName: z.string().min(1, 'First name is required').transform((val) => val.trim()),
+  lastName: z.string().min(1, 'Last name is required').transform((val) => val.trim()),
+  companyName: z.string().min(1, 'Company name is required').transform((val) => val.trim()),
 });
 
 const loginSchema = z.object({
-  email: z.string().email('Invalid email'),
+  email: z.string().email('Invalid email').transform((val) => val.toLowerCase().trim()),
   password: z.string().min(1, 'Password is required'),
 });
 

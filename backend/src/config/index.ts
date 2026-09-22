@@ -5,7 +5,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const env = process.env.NODE_ENV || 'development';
 const isProduction = env === 'production';
-const requiredRuntimeVars = ['DATABASE_URL', 'JWT_SECRET', 'PAYSTACK_SECRET_KEY'];
+const requiredRuntimeVars = ['DATABASE_URL', 'JWT_SECRET', 'PLATFORM_JWT_SECRET', 'PAYSTACK_SECRET_KEY'];
 const requiredProductionVars = process.env.PAYROLL_QUEUE_MODE === 'in-process'
   ? requiredRuntimeVars
   : [...requiredRuntimeVars, 'REDIS_URL'];
@@ -27,6 +27,13 @@ if (!isProduction) {
   }
 }
 
+if (process.env.USE_PAYSTACK_MOCK === 'true') {
+  console.warn(
+    'Warning: USE_PAYSTACK_MOCK is enabled. Wallet deposits credit balance ' +
+    'without a real payment — never enable this on a public deployment.'
+  );
+}
+
 const config = {
   env,
   port: parseInt(process.env.PORT || '5000', 10),
@@ -43,6 +50,11 @@ const config = {
   jwt: {
     secret: process.env.JWT_SECRET || (isProduction ? '' : 'fallback-secret-change-me'),
     expire: process.env.JWT_EXPIRE || '30d',
+  },
+
+  platformJwt: {
+    secret: process.env.PLATFORM_JWT_SECRET || (isProduction ? '' : 'fallback-platform-secret-change-me'),
+    expire: process.env.PLATFORM_JWT_EXPIRE || '12h',
   },
 
   paystack: {

@@ -1,0 +1,113 @@
+.platform-ticket-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #eee9e5;
+  padding-bottom: 0.9rem;
+}
+
+.platform-ticket-heading span {
+  color: #8a6253;
+  font-size: 0.6rem;
+  font-weight: 750;
+}
+
+.platform-ticket-heading h2 {
+  margin: 0.3rem 0 0.2rem;
+  font-size: 1.05rem;
+}
+
+.platform-ticket-heading p {
+  margin: 0;
+  color: #766d73;
+  font-size: 0.62rem;
+}
+
+.platform-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+  margin: 0.9rem 0;
+}
+
+.platform-actions label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.platform-actions label span {
+  font-size: 0.6rem;
+  font-weight: 750;
+}
+
+.platform-actions select {
+  height: 2.4rem;
+  border: 1px solid #cfc7c4;
+  border-radius: 0.5rem;
+  background: white;
+  padding: 0 0.6rem;
+  font-size: 0.7rem;
+}
+
+.platform-messages {
+  display: grid;
+  gap: 0.7rem;
+  max-height: 24rem;
+  overflow: auto;
+  padding: 0.5rem 0;
+}
+
+.platform-messages article {
+  max-width: 88%;
+  border: 1px solid #ded8d3;
+  border-radius: 0.65rem;
+  background: #fffefb;
+  padding: 0.7rem;
+}
+
+.platform-messages article.is-customer {
+  justify-self: end;
+  border-color: #f0c5b4;
+  background: #fff3ec;
+}
+
+.platform-messages article.is-support {
+  border-color: #b9e8cf;
+  background: #eef9f3;
+}
+
+.platform-messages article.is-internal {
+  max-width: 100%;
+  border: 1px dashed #a99ea5;
+  background: #f4f0eb;
+}
+
+.platform-messages article.is-system {
+  max-width: 100%;
+  justify-self: center;
+  border: 0;
+  background: #f4f0eb;
+}
+
+.platform-messages article > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.platform-messages strong,
+.platform-messages time {
+  font-size: 0.56rem;
+}
+
+.platform-messages time {
+  color: #8d848a;
+}
+
+.platform-messages p {
+  margin: 0.4rem 0 0;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}

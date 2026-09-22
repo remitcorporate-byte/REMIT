@@ -1,0 +1,46 @@
+.platform-compose {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+  border-top: 1px solid #eee9e5;
+  padding-top: 0.8rem;
+}
+
+.platform-compose textarea {
+  min-height: 5.5rem;
+  resize: vertical;
+  border: 1px solid #cfc7c4;
+  border-radius: 0.55rem;
+  padding: 0.7rem;
+  outline: none;
+}
+
+.platform-compose > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.platform-compose label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.platform-compose button {
+  display: inline-flex;
+  min-height: 2.4rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: #e85d2a;
+  padding: 0 1rem;
+  color: white;
+  font-size: 0.68rem;
+  font-weight: 750;
+}

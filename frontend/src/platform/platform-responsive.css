@@ -1,0 +1,101 @@
+.platform-back {
+  display: none;
+}
+
+@media (max-width: 1050px) {
+  .platform-metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .platform-queue {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-queue.has-selection .platform-list {
+    display: none;
+  }
+
+  .platform-queue:not(.has-selection) .platform-thread {
+    display: none;
+  }
+
+  .platform-list {
+    border-right: 0;
+  }
+
+  .platform-back {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-bottom: 0.7rem;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: #2b132b;
+    font-size: 0.65rem;
+    font-weight: 750;
+  }
+}
+
+@media (max-width: 720px) {
+  .platform-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-shell > aside {
+    position: static;
+    height: auto;
+    padding: 0.9rem;
+  }
+
+  .platform-shell > aside nav {
+    display: none;
+  }
+
+  .platform-profile {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.7rem;
+    margin: 0;
+    border: 0;
+    padding: 0;
+  }
+
+  .platform-profile > div {
+    display: none;
+  }
+
+  .platform-shell > main > header {
+    min-height: 5.6rem;
+    padding: 1rem;
+  }
+
+  .platform-shell > main > header h1 {
+    font-size: 1.35rem;
+  }
+
+  .platform-content {
+    padding: 0.8rem;
+  }
+
+  .platform-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .platform-queue {
+    min-height: 30rem;
+  }
+
+  .platform-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-compose > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .platform-compose button {
+    width: 100%;
+  }
+}

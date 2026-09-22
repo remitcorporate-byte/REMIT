@@ -58,6 +58,7 @@ enum NotificationType {
   DEPOSIT_SUCCESS
   LOW_BALANCE
   EMPLOYEE_ADDED
+  SUPPORT_UPDATE
   GENERAL
 }
 
@@ -95,6 +96,11 @@ enum SupportMessageSender {
   CUSTOMER
   SUPPORT
   SYSTEM
+}
+
+enum PlatformRole {
+  SUPPORT_AGENT
+  SUPPORT_ADMIN
 }
 
 model User {
@@ -135,15 +141,16 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner          User            @relation("CompanyOwner", fields: [ownerId], references: [id])
-  users          User[]
-  wallet         Wallet?
-  employees      Employee[]
-  payrolls       Payroll[]
-  transactions   Transaction[]
-  notifications  Notification[]
-  auditLogs      AuditLog[]
-  supportTickets SupportTicket[]
+  owner             User               @relation("CompanyOwner", fields: [ownerId], references: [id])
+  users             User[]
+  wallet            Wallet?
+  employees         Employee[]
+  payrolls          Payroll[]
+  transactions      Transaction[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  supportTickets    SupportTicket[]
+  platformAuditLogs PlatformAuditLog[]
 
   @@index([ownerId])
 }
@@ -323,6 +330,7 @@ model SupportTicket {
   createdById   String
   payrollId     String?
   transactionId String?
+  assignedToId  String?
   category      SupportTicketCategory
   priority      SupportTicketPriority @default(NORMAL)
   status        SupportTicketStatus   @default(OPEN)
@@ -337,6 +345,7 @@ model SupportTicket {
   createdBy   User             @relation("SupportTicketCreatedBy", fields: [createdById], references: [id])
   payroll     Payroll?         @relation(fields: [payrollId], references: [id])
   transaction Transaction?     @relation(fields: [transactionId], references: [id])
+  assignedTo  PlatformUser?    @relation("SupportTicketAssignee", fields: [assignedToId], references: [id])
   messages    SupportMessage[]
 
   @@index([companyId, status])
@@ -344,20 +353,61 @@ model SupportTicket {
   @@index([createdById])
   @@index([payrollId])
   @@index([transactionId])
+  @@index([assignedToId, status])
 }
 
 model SupportMessage {
-  id           String               @id @default(uuid())
-  ticketId     String
-  authorUserId String?
-  senderType   SupportMessageSender @default(CUSTOMER)
-  body         String
-  isInternal   Boolean              @default(false)
-  createdAt    DateTime             @default(now())
+  id                   String               @id @default(uuid())
+  ticketId             String
+  authorUserId         String?
+  authorPlatformUserId String?
+  senderType           SupportMessageSender @default(CUSTOMER)
+  body                 String
+  isInternal           Boolean              @default(false)
+  createdAt            DateTime             @default(now())
 
-  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  author User?         @relation("SupportMessageAuthor", fields: [authorUserId], references: [id])
+  ticket             SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author             User?         @relation("SupportMessageAuthor", fields: [authorUserId], references: [id])
+  authorPlatformUser PlatformUser? @relation("PlatformSupportMessageAuthor", fields: [authorPlatformUserId], references: [id])
 
   @@index([ticketId, createdAt])
   @@index([authorUserId])
+  @@index([authorPlatformUserId])
+}
+
+model PlatformUser {
+  id          String       @id @default(uuid())
+  email       String       @unique
+  password    String
+  firstName   String
+  lastName    String
+  role        PlatformRole @default(SUPPORT_AGENT)
+  isActive    Boolean      @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  assignedTickets SupportTicket[]    @relation("SupportTicketAssignee")
+  supportMessages SupportMessage[]   @relation("PlatformSupportMessageAuthor")
+  auditLogs       PlatformAuditLog[]
+
+  @@index([role, isActive])
+}
+
+model PlatformAuditLog {
+  id             String   @id @default(uuid())
+  platformUserId String?
+  companyId      String?
+  action         String
+  entityType     String
+  entityId       String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  platformUser PlatformUser? @relation(fields: [platformUserId], references: [id])
+  company      Company?      @relation(fields: [companyId], references: [id])
+
+  @@index([platformUserId])
+  @@index([companyId])
+  @@index([entityType, createdAt])
 }

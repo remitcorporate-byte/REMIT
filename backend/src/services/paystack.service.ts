@@ -63,7 +63,7 @@ class PaystackService {
   }
 
   // Verify a transaction
-  async verifyTransaction(reference: string) {
+  async verifyTransaction(reference: string, expectedAmount?: number) {
     if (this.useMock) {
       console.log(`[PaystackMock] Verifying transaction: ${reference}`);
       return {
@@ -71,7 +71,7 @@ class PaystackService {
         message: 'Verification successful',
         data: {
           status: 'success',
-          amount: 500000,
+          amount: expectedAmount ?? 500000,
           reference,
           customer: { email: 'test@remit.com' }
         }

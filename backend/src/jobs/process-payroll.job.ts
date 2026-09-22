@@ -32,6 +32,27 @@ function getErrorDetail(error: unknown) {
   return getErrorMessage(error);
 }
 
+/**
+ * True only when Paystack definitively rejected the transfer request: an HTTP
+ * 4xx other than 409 duplicate-reference. Everything else — timeouts,
+ * connection resets, provider 5xx, duplicate references — is ambiguous: the
+ * transfer may still exist at Paystack, so it must stay PENDING for the
+ * webhook or the reconciliation job to verify.
+ */
+function isDefinitiveTransferRejection(error: unknown): boolean {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'response' in error &&
+    typeof error.response === 'object' &&
+    error.response !== null
+  ) {
+    const status = (error.response as { status?: unknown }).status;
+    return typeof status === 'number' && status >= 400 && status < 409;
+  }
+  return false;
+}
+
 export async function processPayroll(data: ProcessPayrollData) {
   const { payrollId, companyId } = data;
 
@@ -174,26 +195,56 @@ export async function processPayroll(data: ProcessPayrollData) {
         const reference = generateReference('PAY');
         console.log(`[ProcessPayroll] Initiating transfer with reference: ${reference}`);
 
-        // Deduct from wallet and create transaction
+        // Deduct from wallet and create (or reset) the transaction. The
+        // transaction row is unique per payroll employee, so a retry after a
+        // definitive transfer failure reuses the existing FAILED/REVERSED row
+        // with a fresh reference instead of creating a second one (which would
+        // violate the unique constraint on Transaction.payrollEmployeeId).
         await prisma.$transaction(async (tx) => {
+          const existing = await tx.transaction.findUnique({
+            where: { payrollEmployeeId: pe.id },
+            select: { id: true, status: true },
+          });
+
+          if (existing && existing.status !== 'FAILED' && existing.status !== 'REVERSED') {
+            throw new Error(
+              `Payroll employee ${pe.id} already has a ${existing.status} transaction; refusing to create a duplicate`
+            );
+          }
+
           await tx.wallet.update({
             where: { id: wallet.id },
             data: { balance: { decrement: pe.amount } },
           });
 
-          await tx.transaction.create({
-            data: {
-              companyId,
-              walletId: wallet.id,
-              employeeId: employee.id,
-              payrollEmployeeId: pe.id,
-              type: 'PAYROLL_DEBIT',
-              amount: pe.amount,
-              status: 'PENDING',
-              description: `Payroll payment to ${employee.firstName} ${employee.lastName}`,
-              paystackReference: reference,
-            },
-          });
+          if (existing) {
+            await tx.transaction.updateMany({
+              where: { id: existing.id, status: { in: ['FAILED', 'REVERSED'] } },
+              data: {
+                status: 'PENDING',
+                paystackReference: reference,
+                paystackTransferId: null,
+                reconciliationStartedAt: null,
+                reconciliationCheckedAt: null,
+                reconciliationError: null,
+                reconciliationAttempt: 0,
+              },
+            });
+          } else {
+            await tx.transaction.create({
+              data: {
+                companyId,
+                walletId: wallet.id,
+                employeeId: employee.id,
+                payrollEmployeeId: pe.id,
+                type: 'PAYROLL_DEBIT',
+                amount: pe.amount,
+                status: 'PENDING',
+                description: `Payroll payment to ${employee.firstName} ${employee.lastName}`,
+                paystackReference: reference,
+              },
+            });
+          }
         });
 
         // Initiate Paystack transfer
@@ -233,9 +284,27 @@ export async function processPayroll(data: ProcessPayrollData) {
             });
           }
         } catch (transferError: unknown) {
-          // Transfer failed — reverse the wallet deduction so money isn't lost
+          if (!isDefinitiveTransferRejection(transferError)) {
+            // The transfer may still have been accepted by Paystack (timeout,
+            // connection reset, provider 5xx, duplicate reference). Reversing
+            // the wallet now would pay the employee twice if the transfer
+            // completes. Leave the transaction PENDING so the transfer.success
+            // webhook or the reconciliation job verifies it and settles it.
+            // The employee row stays PENDING and the payroll stays PROCESSING
+            // until reconciliation reaches a conclusive state.
+            console.error(
+              `[ProcessPayroll] Ambiguous transfer error for ${employee.id}; ` +
+              `leaving transfer PENDING for reconciliation:`,
+              getErrorDetail(transferError)
+            );
+            continue;
+          }
+
+          // Definitive rejection — Paystack answered with an HTTP error, the
+          // transfer was not created. Reverse the wallet deduction and mark
+          // the row FAILED so it can be retried.
           console.error(
-            `[ProcessPayroll] Transfer call failed for ${employee.id}, reversing wallet deduction:`,
+            `[ProcessPayroll] Transfer rejected for ${employee.id}, reversing wallet deduction:`,
             getErrorDetail(transferError)
           );
 

@@ -209,6 +209,7 @@ export const replyToSupportTicket = async (req: Request, res: Response, next: Ne
         data: {
           lastMessageAt: now,
           ...(ticket.status === 'RESOLVED' && { status: 'OPEN', resolvedAt: null }),
+          ...(ticket.status === 'WAITING_FOR_CUSTOMER' && { status: 'IN_PROGRESS' }),
         },
       }),
     ]);

@@ -53,3 +53,13 @@ export function paginatedResponse<T>(
     },
   };
 }
+
+// Escape CSV field value and guard against formula injection (=, +, -, @, \t, \r)
+export function escapeCsvValue(val: unknown): string {
+  if (val === null || val === undefined) return '""';
+  let str = String(val);
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
+  return `"${str.replace(/"/g, '""')}"`;
+}

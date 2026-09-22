@@ -10,6 +10,7 @@ const prisma = new PrismaClient();
 interface JwtPayload {
   id: string;
   role: Role;
+  kind?: 'company';
 }
 
 declare global {
@@ -40,6 +41,9 @@ export const protect = async (req: Request, _res: Response, next: NextFunction) 
     }
 
     const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
+    if (decoded.kind && decoded.kind !== 'company') {
+      throw new AppError('Not authorized for company routes', 401);
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },

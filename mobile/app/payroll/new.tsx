@@ -17,7 +17,15 @@ export default function NewPayrollScreen() {
   const employees = useQuery({ queryKey: ['employees', ''], queryFn: () => api.employees(), enabled: can('payroll.create') });
 
   const create = useMutation({
-    mutationFn: () => api.createPayroll({ scheduledDate, employeeIds: selected, note: note.trim() || undefined }),
+    mutationFn: () => {
+      // The backend requires a full ISO datetime. Convert the free-text date
+      // the user typed (e.g. "2026-08-31") before sending it.
+      const parsedDate = new Date(scheduledDate);
+      if (Number.isNaN(parsedDate.getTime())) {
+        throw new Error('Enter a valid scheduled date (e.g. 2026-08-31)');
+      }
+      return api.createPayroll({ scheduledDate: parsedDate.toISOString(), employeeIds: selected, note: note.trim() || undefined });
+    },
     onSuccess: async (payroll) => {
       await queryClient.invalidateQueries({ queryKey: ['payrolls'] });
       router.replace(`/payroll/${payroll.id}`);

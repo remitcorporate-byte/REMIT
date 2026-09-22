@@ -1,0 +1,120 @@
+.platform-queue {
+  display: grid;
+  min-height: 34rem;
+  grid-template-columns: minmax(18rem, 0.7fr) minmax(0, 1.3fr);
+  overflow: hidden;
+  border: 1px solid #ded8d3;
+  border-radius: 0.8rem;
+  background: white;
+}
+
+.platform-list {
+  min-width: 0;
+  border-right: 1px solid #ded8d3;
+}
+
+.platform-list-tools {
+  display: grid;
+  gap: 0.6rem;
+  border-bottom: 1px solid #ded8d3;
+  padding: 0.8rem;
+}
+
+.platform-list-tools > div {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid #cfc7c4;
+  border-radius: 0.5rem;
+  padding: 0 0.65rem;
+}
+
+.platform-list-tools input,
+.platform-list-tools select {
+  width: 100%;
+  height: 2.4rem;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 0.7rem;
+}
+
+.platform-list-tools > select {
+  height: 2.4rem;
+  border: 1px solid #cfc7c4;
+  border-radius: 0.5rem;
+  background: white;
+  padding: 0 0.6rem;
+  font-size: 0.7rem;
+}
+
+.platform-list > button {
+  display: grid;
+  width: 100%;
+  gap: 0.35rem;
+  border: 0;
+  border-bottom: 1px solid #eee9e5;
+  background: white;
+  padding: 0.85rem;
+  text-align: left;
+}
+
+.platform-list > button:hover,
+.platform-list > button.is-active {
+  background: #fff8f1;
+}
+
+.platform-list > button.is-active {
+  box-shadow: inset 3px 0 #e85d2a;
+}
+
+.platform-list > button > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.platform-list > button > div > span {
+  color: #8a6253;
+  font-size: 0.56rem;
+  font-weight: 800;
+}
+
+.platform-list > button > strong {
+  font-size: 0.76rem;
+}
+
+.platform-list > button p {
+  margin: 0;
+  color: #716970;
+  font-size: 0.64rem;
+}
+
+.platform-list > button small {
+  color: #92888f;
+  font-size: 0.56rem;
+}
+
+.platform-thread {
+  min-width: 0;
+  padding: 1rem;
+}
+
+.platform-empty {
+  display: grid;
+  min-height: 8rem;
+  place-items: center;
+  color: #897f86;
+  font-size: 0.72rem;
+}
+
+.platform-select {
+  min-height: 28rem;
+  align-content: center;
+  gap: 0.5rem;
+}
+
+.platform-select strong {
+  color: #51484f;
+}

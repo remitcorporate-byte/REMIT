@@ -1,0 +1,117 @@
+.platform-centred {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  background: #f4f0eb;
+  color: #2b132b;
+  font-family: "Manrope Variable", sans-serif;
+}
+
+.platform-login {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  background:
+    radial-gradient(circle at 80% 10%, #ffe0d1, transparent 25%), #2b132b;
+  padding: 1.2rem;
+  font-family: "Manrope Variable", sans-serif;
+}
+
+.platform-login > section {
+  display: grid;
+  width: min(100%, 27rem);
+  gap: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 1rem;
+  background: #fffcf7;
+  padding: 2rem;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.28);
+}
+
+.platform-login h1 {
+  margin: 0;
+  color: #211a20;
+  font-size: 2rem;
+  letter-spacing: -0.05em;
+}
+
+.platform-login p {
+  margin: -0.5rem 0 0.3rem;
+  color: #716970;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.platform-login form {
+  display: grid;
+  gap: 1rem;
+}
+
+.platform-login label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.platform-login label span {
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.platform-login input {
+  height: 2.8rem;
+  border: 1px solid #cfc7c4;
+  border-radius: 0.55rem;
+  background: white;
+  padding: 0 0.8rem;
+  outline: none;
+}
+
+.platform-login input:focus {
+  border-color: #2b132b;
+  box-shadow: 0 0 0 4px rgba(43, 19, 43, 0.08);
+}
+
+.platform-login form button {
+  display: inline-flex;
+  min-height: 2.8rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: #e85d2a;
+  padding: 0 1rem;
+  color: white;
+  font-weight: 750;
+}
+
+.platform-login > a {
+  color: #716970;
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.platform-mark {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.platform-mark i {
+  width: 0.8rem;
+  height: 0.8rem;
+  background: #e85d2a;
+}
+
+.platform-mark strong {
+  letter-spacing: 0.08em;
+}
+
+.platform-mark span {
+  border-left: 1px solid currentColor;
+  padding-left: 0.5rem;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  opacity: 0.65;
+}

@@ -87,13 +87,21 @@ export const initializeDeposit = async (req: Request, res: Response, next: NextF
       metadata: { amount },
     });
 
+    // The configured FRONTEND_URL may be a comma-separated CORS list; Paystack
+    // needs a single origin for the callback. Prefer the request's own origin
+    // when it is an allowed one, otherwise fall back to the first configured.
+    const requestOrigin = req.headers.origin;
+    const callbackBase = requestOrigin && config.frontendUrls.includes(requestOrigin)
+      ? requestOrigin
+      : config.frontendUrls[0];
+
     // Initialize Paystack transaction
     const response = await paystackService.initializeTransaction({
       email: req.user.email,
       amount,
       reference,
-      callbackUrl: config.frontendUrl
-        ? `${config.frontendUrl}/?view=wallet&depositReference=${reference}`
+      callbackUrl: callbackBase
+        ? `${callbackBase}/?view=wallet&depositReference=${reference}`
         : undefined,
       metadata: {
         companyId: req.user.companyId,
@@ -158,20 +166,20 @@ export const verifyDeposit = async (req: Request, res: Response, next: NextFunct
       });
     }
 
-    const verification = await paystackService.verifyTransaction(reference);
+    const verification = await paystackService.verifyTransaction(reference, transaction.amount);
     const verificationStatus = String(verification.data.status || '').toLowerCase();
 
     if (verificationStatus === 'success') {
-      if (process.env.USE_PAYSTACK_MOCK !== 'true') {
-        const verifiedAmount = Number(verification.data.amount);
-        const verifiedCurrency = String(verification.data.currency || '').toUpperCase();
+      // Amount and currency checks apply in every mode — mock verification
+      // echoes the initialized amount instead of skipping validation.
+      const verifiedAmount = Number(verification.data.amount);
+      const verifiedCurrency = String(verification.data.currency || '').toUpperCase();
 
-        if (!Number.isSafeInteger(verifiedAmount) || verifiedAmount !== transaction.amount) {
-          throw new AppError('Verified payment amount does not match the deposit', 400);
-        }
-        if (verifiedCurrency && verifiedCurrency !== 'NGN') {
-          throw new AppError('Verified payment currency does not match the wallet', 400);
-        }
+      if (!Number.isSafeInteger(verifiedAmount) || verifiedAmount !== transaction.amount) {
+        throw new AppError('Verified payment amount does not match the deposit', 400);
+      }
+      if (verifiedCurrency && verifiedCurrency !== 'NGN') {
+        throw new AppError('Verified payment currency does not match the wallet', 400);
       }
 
       // Only the request that atomically transitions this deposit may credit the wallet.

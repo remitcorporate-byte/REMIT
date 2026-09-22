@@ -8,6 +8,7 @@ type NotificationType =
   | 'DEPOSIT_SUCCESS'
   | 'LOW_BALANCE'
   | 'EMPLOYEE_ADDED'
+  | 'SUPPORT_UPDATE'
   | 'GENERAL';
 type NotificationChannel = 'IN_APP' | 'EMAIL' | 'SMS';
 
@@ -41,7 +42,9 @@ class NotificationService {
     const admins = await prisma.user.findMany({
       where: {
         companyId: params.companyId,
-        role: 'ADMIN',
+        // Companies are created with an OWNER (not ADMIN), so owners must be
+        // included or single-founder companies receive no alerts at all.
+        role: { in: ['OWNER', 'ADMIN'] },
         isActive: true,
       },
       select: { id: true },
@@ -59,6 +62,34 @@ class NotificationService {
     if (notifications.length > 0) {
       await prisma.notification.createMany({ data: notifications });
     }
+  }
+
+  async notifySupportParticipants(params: {
+    companyId: string;
+    createdById: string;
+    title: string;
+    message: string;
+  }) {
+    const users = await prisma.user.findMany({
+      where: {
+        companyId: params.companyId,
+        isActive: true,
+        OR: [{ id: params.createdById }, { role: { in: ['OWNER', 'ADMIN'] } }],
+      },
+      select: { id: true },
+    });
+    const userIds = [...new Set(users.map((user) => user.id))];
+    if (!userIds.length) return;
+    await prisma.notification.createMany({
+      data: userIds.map((userId) => ({
+        companyId: params.companyId,
+        userId,
+        type: 'SUPPORT_UPDATE',
+        channel: 'IN_APP',
+        title: params.title,
+        message: params.message,
+      })),
+    });
   }
 }
 

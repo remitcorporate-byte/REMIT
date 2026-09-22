@@ -14,7 +14,8 @@
     "test:local-supabase": "powershell -ExecutionPolicy Bypass -File scripts/test-local-supabase.ps1",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "platform:seed-admin": "ts-node scripts/seed-platform-admin.ts"
   },
   "keywords": [
     "payroll",
@@ -49,5 +50,6 @@
     "prisma": "^5.22.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
-  }
+  },
+  "workspaces": ["."]
 }

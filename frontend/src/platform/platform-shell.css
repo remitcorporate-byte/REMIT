@@ -1,0 +1,129 @@
+.platform-shell {
+  display: grid;
+  min-height: 100svh;
+  grid-template-columns: 235px minmax(0, 1fr);
+  background: #f7f4ef;
+  color: #211a20;
+  font-family: "Manrope Variable", sans-serif;
+}
+
+.platform-shell > aside {
+  position: sticky;
+  top: 0;
+  display: flex;
+  height: 100svh;
+  flex-direction: column;
+  background: #211221;
+  padding: 1.4rem 1rem;
+  color: white;
+}
+
+.platform-shell > aside nav {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 2rem;
+}
+
+.platform-shell > aside nav button {
+  display: flex;
+  min-height: 2.8rem;
+  align-items: center;
+  gap: 0.7rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  padding: 0 0.8rem;
+  color: #cdbdc9;
+  text-align: left;
+}
+
+.platform-shell > aside nav button.is-active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ff7b4c;
+}
+
+.platform-profile {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding-top: 1rem;
+}
+
+.platform-profile > span {
+  display: grid;
+  width: 2.3rem;
+  height: 2.3rem;
+  place-items: center;
+  border-radius: 50%;
+  background: #fffaf4;
+  color: #2b132b;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.platform-profile strong,
+.platform-profile small {
+  display: block;
+}
+
+.platform-profile strong {
+  font-size: 0.7rem;
+}
+
+.platform-profile small {
+  margin-top: 0.15rem;
+  color: #ad9eaa;
+  font-size: 0.55rem;
+}
+
+.platform-profile button {
+  border: 0;
+  background: transparent;
+  color: #cdbdc9;
+}
+
+.platform-shell > main {
+  min-width: 0;
+}
+
+.platform-shell > main > header {
+  display: flex;
+  min-height: 7rem;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #ded8d3;
+  padding: 1.4rem 2rem;
+}
+
+.platform-shell > main > header span {
+  color: #766d73;
+  font-size: 0.67rem;
+  font-weight: 700;
+}
+
+.platform-shell > main > header h1 {
+  margin: 0.2rem 0 0;
+  font-size: 1.8rem;
+  letter-spacing: -0.05em;
+}
+
+.platform-shell > main > header button {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #cfc7c4;
+  border-radius: 0.5rem;
+  background: white;
+  padding: 0.65rem 0.8rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.platform-content {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem 2rem 2rem;
+}

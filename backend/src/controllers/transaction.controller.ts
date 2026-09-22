@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, TransactionType, TransactionStatus, Prisma } from '@prisma/client';
 import { AppError } from '../middleware/errorHandler';
-import { getPaginationParams, paginatedResponse } from '../utils/formatters';
+import { getPaginationParams, paginatedResponse, escapeCsvValue } from '../utils/formatters';
 
 const prisma = new PrismaClient();
 
@@ -22,10 +22,17 @@ export const getTransactions = async (req: Request, res: Response, next: NextFun
     const status = req.query.status as string | undefined;
     const employeeId = req.query.employeeId as string | undefined;
 
-    const where = {
+    if (type && !Object.values(TransactionType).includes(type as TransactionType)) {
+      throw new AppError(`Invalid transaction type: ${type}`, 400);
+    }
+    if (status && !Object.values(TransactionStatus).includes(status as TransactionStatus)) {
+      throw new AppError(`Invalid transaction status: ${status}`, 400);
+    }
+
+    const where: Prisma.TransactionWhereInput = {
       companyId: req.user.companyId,
-      ...(type && { type: type as any }),
-      ...(status && { status: status as any }),
+      ...(type && { type: type as TransactionType }),
+      ...(status && { status: status as TransactionStatus }),
       ...(employeeId && { employeeId }),
     };
 
@@ -119,7 +126,7 @@ export const exportTransactions = async (req: Request, res: Response, next: Next
 
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="transactions.csv"');
-    res.send(rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n'));
+    res.send(rows.map((row) => row.map((value) => escapeCsvValue(value)).join(',')).join('\n'));
   } catch (error) {
     next(error);
   }

@@ -8,16 +8,20 @@ OWNER and ADMIN users can close tickets. EMPLOYEE accounts receive no support
 permissions because the employee portal remains outside the current product.
 
 REMIT platform support staff are deliberately not represented by a company
-ADMIN role. Cross-company support operations require a separate platform
-identity and authorization boundary and are the next support slice.
+ADMIN role. They use separate `PlatformUser` identities, platform-only JWTs,
+permissions, and audit records.
 
 ## Data model
 
 - `SupportTicket` stores the company, creator, category, priority, status,
   subject, activity timestamps, and an optional linked payroll or transaction.
 - `SupportMessage` stores the conversation. Messages identify customer,
-  support, and system senders and support private internal notes for the future
+  support, and system senders. Private internal notes are visible only in the
   platform console.
+- `PlatformUser` stores support agents and support administrators separately
+  from company users.
+- `PlatformAuditLog` records assignments, replies, notes, status changes, staff
+  changes, and platform logins.
 - Every ticket query is scoped by `companyId`.
 - A linked payroll or transaction is accepted only when it belongs to the same
   company as the authenticated user.
@@ -48,6 +52,31 @@ All routes require bearer authentication.
 
 List queries accept `page`, `limit`, `status`, `category`, and `search`.
 
+## Platform support console
+
+The console is available at `/platform`. It provides a cross-company queue,
+queue metrics, search, assignment filters, ticket assignment, status changes,
+public replies, and private internal notes.
+
+Platform API routes use `/api/v1/platform`. Company JWTs are rejected from
+these routes, and platform JWTs are rejected from company routes.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| POST | `/api/v1/platform/auth/login` | Platform staff login |
+| GET | `/api/v1/platform/auth/me` | Current platform account |
+| GET/POST | `/api/v1/platform/auth/staff` | List staff or create staff as a support admin |
+| GET | `/api/v1/platform/support/summary` | Queue metrics |
+| GET | `/api/v1/platform/support/tickets` | Cross-company ticket queue |
+| GET | `/api/v1/platform/support/tickets/:id` | Full conversation including internal notes |
+| PUT | `/api/v1/platform/support/tickets/:id/assignment` | Assign or unassign a ticket |
+| PUT | `/api/v1/platform/support/tickets/:id/status` | Change ticket status |
+| POST | `/api/v1/platform/support/tickets/:id/messages` | Send a public reply or internal note |
+
+Create the first support administrator with `pnpm platform:seed-admin` after
+setting the `PLATFORM_ADMIN_*` environment variables. There is no public
+platform registration endpoint.
+
 ## Database rollout
 
 Apply `backend/prisma/migrations/20260801150000_add_support_centre/migration.sql`
@@ -56,12 +85,14 @@ database together with all preceding migrations. It was applied to the
 configured live Supabase database on August 1, 2026, and Prisma confirmed that
 all eight migrations are up to date.
 
+The platform support migration at
+`backend/prisma/migrations/20260801170000_add_platform_support/migration.sql`
+has been validated with the complete migration chain on an isolated database.
+It has not yet been applied to the live database.
+
 ## Next support slice
 
-1. Introduce platform staff identities and `SUPPORT_AGENT` / `SUPPORT_ADMIN`
-   permissions outside company roles.
-2. Add a cross-company queue with assignment, status changes, internal notes,
-   and support replies.
-3. Notify ticket participants when support replies or changes status.
-4. Add attachment storage, file validation, and retention rules.
-5. Add response-time metrics and escalation policies.
+1. Add attachment storage, file validation, and retention rules.
+2. Add response-time metrics, SLA timers, and escalation policies.
+3. Add staff-management screens for creating and deactivating agents.
+4. Add outbound email delivery for public support replies.

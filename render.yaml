@@ -26,6 +26,8 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
+      - key: PLATFORM_JWT_SECRET
+        generateValue: true
       - key: PAYSTACK_SECRET_KEY
         sync: false
       - key: PAYSTACK_PUBLIC_KEY
@@ -55,7 +57,15 @@ services:
       - key: DIRECT_URL
         sync: false
       - key: JWT_SECRET
-        generateValue: true
+        fromService:
+          name: remit-api
+          type: web
+        fromKey: JWT_SECRET
+      - key: PLATFORM_JWT_SECRET
+        fromService:
+          name: remit-api
+          type: web
+        fromKey: PLATFORM_JWT_SECRET
       - key: PAYSTACK_SECRET_KEY
         sync: false
       - key: PAYSTACK_PUBLIC_KEY
