@@ -1,0 +1,5 @@
+{"phase":"before","app":"web","role":"owner","consoleErrors":["Failed to load resource: the server responded with a status of 401 (Unauthorized)"],"failed":[],"sessionRestored":true}
+{"phase":"before","app":"web","role":"admin","consoleErrors":["Failed to load resource: the server responded with a status of 401 (Unauthorized)"],"failed":[],"sessionRestored":true}
+{"phase":"before","app":"web","role":"finance","consoleErrors":["Failed to load resource: the server responded with a status of 401 (Unauthorized)"],"failed":[],"sessionRestored":true}
+{"phase":"before","app":"web","role":"viewer","consoleErrors":["Failed to load resource: the server responded with a status of 401 (Unauthorized)"],"failed":[],"sessionRestored":true}
+{"phase":"before","app":"mobile","role":"owner","consoleErrors":[],"failed":[]}

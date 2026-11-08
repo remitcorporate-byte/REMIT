@@ -1,0 +1,6 @@
+import {chromium} from 'playwright'; import fs from 'node:fs/promises';
+const role=process.argv[2]||'viewer'; const email=`${role}@demo.remit.ng`; const out=`ui-review/screenshots/after`;
+const b=await chromium.launch({headless:true,executablePath:'/usr/bin/google-chrome'}); const c=await b.newContext({viewport:{width:1440,height:1000}}); const p=await c.newPage(); const errors=[]; const failed=[]; p.on('console',m=>m.type()==='error'&&errors.push(m.text())); p.on('requestfailed',r=>failed.push(r.url()));
+await p.goto('http://localhost:5173'); await p.getByRole('button',{name:'Sign in',exact:true}).first().click(); await p.getByLabel('Work email').fill(email); await p.locator('input[type=password]').first().fill('RemitDemo2026'); await p.getByRole('button',{name:'Sign in',exact:true}).click(); await p.waitForTimeout(1500); await p.screenshot({path:`${out}/web-${role}-dashboard.png`,fullPage:true});
+for (const label of ['Employees','Wallet','Payroll','Transactions','Alerts','Support','Settings']) { const n=p.locator('nav[aria-label="Operations navigation"] button').filter({hasText:label}).first(); if(await n.count()){await n.click({timeout:10000}); await p.waitForTimeout(900); await p.screenshot({path:`${out}/web-${role}-${label.toLowerCase()}.png`,fullPage:true});}}
+console.log(JSON.stringify({role,errors,failed})); await b.close();

@@ -5,3 +5,5 @@ dist/
 .DS_Store
 .claude/
 nul
+# Review harness dependencies
+ui-review/node_modules/

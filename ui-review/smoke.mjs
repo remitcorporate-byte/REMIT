@@ -1,0 +1,10 @@
+import {chromium} from 'playwright';
+const b=await chromium.launch({headless:true,executablePath:'/usr/bin/google-chrome'});
+const c=await b.newContext({viewport:{width:1440,height:1000}}); const p=await c.newPage();
+const consoleErrors=[]; const failed=[]; p.on('console',m=>m.type()==='error'&&consoleErrors.push(m.text())); p.on('requestfailed',r=>failed.push(`${r.method()} ${r.url()}`));
+await p.goto('http://localhost:5173'); await p.getByRole('button',{name:'Sign in',exact:true}).first().click(); await p.getByLabel('Work email').fill('owner@demo.remit.ng'); await p.locator('input[type=password]').first().fill('RemitDemo2026'); await p.getByRole('button',{name:'Sign in',exact:true}).click(); await p.waitForTimeout(1000);
+await p.getByRole('navigation',{name:'Operations navigation'}).getByRole('button',{name:'Wallet',exact:true}).click(); await p.waitForTimeout(500); const dialogPromise=p.waitForEvent('dialog'); await p.getByRole('button',{name:'Initialize deposit'}).click(); const d=await dialogPromise; const dialogText=d.message(); await d.dismiss();
+await p.getByRole('navigation',{name:'Operations navigation'}).getByRole('button',{name:'Transactions',exact:true}).click(); await p.waitForTimeout(500); await p.locator('select').nth(0).selectOption('REFUND'); const filtered=await p.locator('tbody tr').count();
+await p.getByRole('navigation',{name:'Operations navigation'}).getByRole('button',{name:'Payroll',exact:true}).click(); await p.waitForTimeout(500); const approveDialogPromise=p.waitForEvent('dialog'); await p.getByRole('button',{name:'Approve',exact:true}).first().click(); const ad=await approveDialogPromise; const approveText=ad.message(); await ad.dismiss();
+await p.screenshot({path:'ui-review/screenshots/after/web-owner-confirmations.png',fullPage:true});
+console.log(JSON.stringify({consoleErrors,failed,depositConfirm:dialogText,approveConfirm:approveText,refundRows:filtered},null,2)); await b.close();
