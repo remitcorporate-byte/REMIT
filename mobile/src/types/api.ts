@@ -108,6 +108,26 @@ export type Transaction = {
   amount: number;
   status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REVERSED';
   description?: string | null;
+  paystackReference?: string | null;
+  employee?: { firstName: string; lastName: string; email: string } | null;
+  createdAt: string;
+};
+
+export type NotificationType =
+  | 'PAYROLL_SCHEDULED'
+  | 'PAYROLL_COMPLETED'
+  | 'PAYROLL_FAILED'
+  | 'DEPOSIT_SUCCESS'
+  | 'LOW_BALANCE'
+  | 'EMPLOYEE_ADDED'
+  | 'GENERAL';
+
+export type AppNotification = {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  isRead: boolean;
   createdAt: string;
 };
 
@@ -141,6 +161,8 @@ export type Paginated<T> = {
     pages?: number;
   };
 };
+
+export type NotificationPage = Paginated<AppNotification> & { unreadCount: number };
 
 export type ApiResponse<T> = {
   success: boolean;

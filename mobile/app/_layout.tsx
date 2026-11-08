@@ -38,6 +38,8 @@ export default function RootLayout() {
           <Stack.Screen name="employee/new" options={{ title: 'Add employee', presentation: 'modal' }} />
           <Stack.Screen name="payroll/new" options={{ title: 'Create payroll', presentation: 'modal' }} />
           <Stack.Screen name="payroll/[id]" options={{ title: 'Payroll details' }} />
+          <Stack.Screen name="transactions" options={{ title: 'Transactions' }} />
+          <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
         </Stack>
       </AuthProvider>
     </QueryClientProvider>

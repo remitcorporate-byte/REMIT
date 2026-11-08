@@ -1,14 +1,17 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Linking, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Linking, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useState } from 'react';
 
-import { api, formatDate, formatNaira } from '@/src/api/client';
+import { api, formatNaira } from '@/src/api/client';
 import { useAuth } from '@/src/auth/auth-provider';
-import { Badge, Button, Card, EmptyState, ErrorMessage, Field, PageHeading, Screen } from '@/src/components/ui';
+import { TransactionRow } from '@/src/components/transaction-row';
+import { Button, Card, EmptyState, ErrorMessage, Field, PageHeading, Screen } from '@/src/components/ui';
 import { colors } from '@/src/constants/theme';
 
 export default function WalletScreen() {
   const { can } = useAuth();
+  const router = useRouter();
   const [amount, setAmount] = useState('');
   const wallet = useQuery({ queryKey: ['wallet'], queryFn: api.wallet, enabled: can('wallet.read') });
   const transactions = useQuery({
@@ -76,22 +79,16 @@ export default function WalletScreen() {
 
       {can('transaction.read') ? (
         <View style={styles.transactions}>
-          <Text style={styles.sectionTitle}>Transactions</Text>
+          <View style={styles.sectionRow}>
+            <Text style={styles.sectionTitle}>Recent activity</Text>
+            <Pressable accessibilityRole="link" hitSlop={10} onPress={() => router.push('/transactions')}>
+              <Text style={styles.link}>See all</Text>
+            </Pressable>
+          </View>
           {!transactions.data?.length ? (
             <EmptyState title="No wallet activity" description="Deposits and payroll debits will appear here." />
           ) : (
-            transactions.data.slice(0, 20).map((transaction) => (
-              <Card key={transaction.id} style={styles.transaction}>
-                <View style={styles.transactionCopy}>
-                  <Text style={styles.transactionTitle}>{transaction.description || transaction.type.replaceAll('_', ' ')}</Text>
-                  <Text style={styles.copy}>{formatDate(transaction.createdAt)}</Text>
-                </View>
-                <View style={styles.transactionAmount}>
-                  <Text style={styles.amount}>{formatNaira(transaction.amount)}</Text>
-                  <Badge label={transaction.status} tone={transaction.status === 'SUCCESS' ? 'success' : transaction.status === 'FAILED' ? 'danger' : 'warning'} />
-                </View>
-              </Card>
-            ))
+            transactions.data.slice(0, 5).map((transaction) => <TransactionRow key={transaction.id} transaction={transaction} />)
           )}
         </View>
       ) : null}
@@ -110,9 +107,6 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: '900' },
   copy: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   transactions: { gap: 10 },
-  transaction: { alignItems: 'center', flexDirection: 'row', padding: 14 },
-  transactionCopy: { flex: 1, gap: 3 },
-  transactionTitle: { color: colors.ink, fontSize: 14, fontWeight: '800' },
-  transactionAmount: { alignItems: 'flex-end', gap: 6 },
-  amount: { color: colors.ink, fontSize: 14, fontWeight: '900' },
+  sectionRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  link: { color: colors.primary, fontSize: 14, fontWeight: '800' },
 });

@@ -1,14 +1,22 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useQuery } from '@tanstack/react-query';
-import { StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { API_URL, api } from '@/src/api/client';
+import { API_URL, api, NOTIFICATIONS_KEY } from '@/src/api/client';
 import { useAuth } from '@/src/auth/auth-provider';
 import { Badge, Button, Card, ErrorMessage, PageHeading, Screen } from '@/src/components/ui';
 import { colors } from '@/src/constants/theme';
 
 export default function MoreScreen() {
   const { user, logout, can } = useAuth();
+  const router = useRouter();
+  const unread = useQuery({
+    queryKey: [...NOTIFICATIONS_KEY, 'summary'],
+    queryFn: () => api.notifications(1),
+    enabled: can('notification.read'),
+    select: (page) => page.unreadCount,
+  });
   const status = useQuery({
     queryKey: ['system-status'],
     queryFn: api.systemStatus,
@@ -27,6 +35,20 @@ export default function MoreScreen() {
           <Text style={styles.email}>{user?.email}</Text>
           <Badge label={user?.role || 'User'} />
         </View>
+      </Card>
+
+      <Card style={styles.menu}>
+        {can('notification.read') ? (
+          <MenuRow
+            badge={unread.data ? String(unread.data) : undefined}
+            icon="notifications-none"
+            label="Notifications"
+            onPress={() => router.push('/notifications')}
+          />
+        ) : null}
+        {can('transaction.read') ? (
+          <MenuRow icon="receipt-long" label="Transactions" onPress={() => router.push('/transactions')} />
+        ) : null}
       </Card>
 
       <Card style={styles.permissions}>
@@ -62,6 +84,27 @@ export default function MoreScreen() {
   );
 }
 
+function MenuRow({
+  icon,
+  label,
+  badge,
+  onPress,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  label: string;
+  badge?: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.menuRow, pressed && styles.menuPressed]}>
+      <MaterialIcons color={colors.primary} name={icon} size={22} />
+      <Text style={styles.menuLabel}>{label}</Text>
+      {badge ? <Badge label={badge} tone="danger" /> : null}
+      <MaterialIcons color={colors.muted} name="chevron-right" size={22} />
+    </Pressable>
+  );
+}
+
 function StatusRow({ label, online }: { label: string; online?: boolean }) {
   return (
     <View style={styles.statusRow}>
@@ -79,6 +122,10 @@ const styles = StyleSheet.create({
   name: { color: colors.ink, fontSize: 18, fontWeight: '900' },
   email: { color: colors.muted, fontSize: 13 },
   permissions: { gap: 12 },
+  menu: { paddingVertical: 4 },
+  menuRow: { alignItems: 'center', flexDirection: 'row', gap: 12, paddingVertical: 12 },
+  menuPressed: { opacity: 0.6 },
+  menuLabel: { color: colors.ink, flex: 1, fontSize: 15, fontWeight: '700' },
   sectionHeader: { alignItems: 'center', flexDirection: 'row', gap: 8 },
   sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: '900' },
   copy: { color: colors.muted, fontSize: 13, lineHeight: 19 },

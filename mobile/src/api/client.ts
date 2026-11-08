@@ -1,8 +1,10 @@
 import type {
   ApiResponse,
+  AppNotification,
   Bank,
   BankVerification,
   Dashboard,
+  NotificationPage,
   Employee,
   Paginated,
   Payroll,
@@ -11,6 +13,8 @@ import type {
   User,
   Wallet,
 } from '@/src/types/api';
+
+export const NOTIFICATIONS_KEY = ['notifications'] as const;
 
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api/v1').replace(/\/$/, '');
 
@@ -103,6 +107,17 @@ export const api = {
     request<ApiResponse<{ message: string }>>(`/payrolls/${id}/retry`, { method: 'PUT' }),
   wallet: () => request<ApiResponse<Wallet>>('/wallet').then((response) => response.data),
   transactions: () => request<Paginated<Transaction>>('/transactions?limit=100').then((response) => response.data),
+  transactionPage: ({ page, type, status }: { page: number; type?: Transaction['type']; status?: Transaction['status'] }) => {
+    const params = new URLSearchParams({ page: String(page), limit: '25' });
+    if (type) params.set('type', type);
+    if (status) params.set('status', status);
+    return request<Paginated<Transaction>>(`/transactions?${params.toString()}`);
+  },
+  transaction: (id: string) => request<ApiResponse<Transaction>>(`/transactions/${id}`).then((response) => response.data),
+  notifications: (page = 1) => request<NotificationPage>(`/notifications?page=${page}&limit=25`),
+  markNotificationRead: (id: string) =>
+    request<ApiResponse<AppNotification>>(`/notifications/${id}/read`, { method: 'PUT' }).then((response) => response.data),
+  markAllNotificationsRead: () => request<{ success: boolean }>('/notifications/read-all', { method: 'PUT' }),
   deposit: (amount: number) =>
     request<ApiResponse<{ authorizationUrl: string; reference: string }>>('/wallet/deposit', {
       method: 'POST',
@@ -120,3 +135,24 @@ export const formatNaira = (kobo = 0) =>
 
 export const formatDate = (value?: string | null) =>
   value ? new Intl.DateTimeFormat('en-NG', { dateStyle: 'medium' }).format(new Date(value)) : 'Not set';
+
+export const formatDateTime = (value?: string | null) =>
+  value
+    ? new Intl.DateTimeFormat('en-NG', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+    : 'Not set';
+
+export function formatRelative(value: string) {
+  const seconds = Math.round((Date.now() - new Date(value).getTime()) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return formatDate(value);
+}
+
+export function pageCount(pagination: { total: number; limit: number; totalPages?: number; pages?: number }) {
+  return pagination.totalPages ?? pagination.pages ?? Math.max(1, Math.ceil(pagination.total / pagination.limit));
+}

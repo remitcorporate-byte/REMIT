@@ -3,6 +3,7 @@ import { Redirect, Tabs } from 'expo-router';
 
 import { useAuth } from '@/src/auth/auth-provider';
 import { LoadingScreen } from '@/src/components/loading-screen';
+import { NotificationBell } from '@/src/components/notification-bell';
 import { colors } from '@/src/constants/theme';
 
 export default function AppLayout() {
@@ -17,6 +18,7 @@ export default function AppLayout() {
         headerStyle: { backgroundColor: colors.background },
         headerShadowVisible: false,
         headerTitleStyle: { color: colors.ink, fontWeight: '900' },
+        headerRight: () => (can('notification.read') ? <NotificationBell /> : null),
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: { borderTopColor: colors.line, height: 64, paddingBottom: 8, paddingTop: 6 },
