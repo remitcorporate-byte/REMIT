@@ -1,5 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 
 import { formatDateTime, formatNaira } from '@/src/api/client';
 import { Badge, Card } from '@/src/components/ui';
@@ -26,6 +27,7 @@ export function TransactionRow({ transaction }: { transaction: Transaction }) {
     : transaction.description || meta.label;
 
   return (
+    <Pressable accessibilityRole="button" onPress={() => router.push((`/transaction/${transaction.id}`) as never)} style={({ pressed }) => pressed && styles.pressed}>
     <Card style={styles.row}>
       <View style={[styles.icon, meta.inflow ? styles.iconIn : styles.iconOut]}>
         <MaterialIcons color={meta.inflow ? colors.success : colors.primary} name={meta.icon} size={18} />
@@ -44,6 +46,7 @@ export function TransactionRow({ transaction }: { transaction: Transaction }) {
         <Badge label={transaction.status} tone={transactionTone(transaction.status)} />
       </View>
     </Card>
+    </Pressable>
   );
 }
 
@@ -58,4 +61,5 @@ const styles = StyleSheet.create({
   amountCol: { alignItems: 'flex-end', gap: 6 },
   amount: { color: colors.ink, fontSize: 14, fontWeight: '900' },
   amountIn: { color: colors.success },
+  pressed: { opacity: 0.7 },
 });

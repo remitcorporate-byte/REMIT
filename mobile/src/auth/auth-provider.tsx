@@ -1,10 +1,8 @@
-import * as SecureStore from 'expo-secure-store';
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import { api, setAccessToken } from '@/src/api/client';
+import { api, setAccessToken, setRefreshToken } from '@/src/api/client';
 import type { Permission, User } from '@/src/types/api';
 
-const TOKEN_KEY = 'remit.mobile.token';
 
 type Registration = {
   email: string;
@@ -20,6 +18,7 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>;
   register: (input: Registration) => Promise<void>;
   logout: () => Promise<void>;
+  logoutAll: () => Promise<void>;
   can: (permission: Permission) => boolean;
 };
 
@@ -32,18 +31,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const clearSession = useCallback(async () => {
     setAccessToken(null);
     setUser(null);
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await setRefreshToken(null);
   }, []);
 
   useEffect(() => {
     async function restoreSession() {
       try {
-        const token = await SecureStore.getItemAsync(TOKEN_KEY);
-        if (!token) return;
-        setAccessToken(token);
-        setUser(await api.me());
+        setUser(await api.restore());
       } catch {
-        await clearSession();
+        // Don't wipe the stored refresh token on a network error; a revoked or
+        // expired session is already cleared inside refreshSession().
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -52,16 +50,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
     void restoreSession();
   }, [clearSession]);
 
-  const saveSession = useCallback(async (token: string, nextUser: User) => {
+  const saveSession = useCallback(async (token: string, nextUser: User, refreshToken?: string) => {
     setAccessToken(token);
     setUser(nextUser);
-    await SecureStore.setItemAsync(TOKEN_KEY, token);
+    await setRefreshToken(refreshToken || null);
   }, []);
 
   const login = useCallback(
     async (email: string, password: string) => {
       const session = await api.login(email.trim().toLowerCase(), password);
-      await saveSession(session.token, session.user);
+      await saveSession(session.accessToken || session.token || '', session.user, session.refreshToken);
     },
     [saveSession],
   );
@@ -69,7 +67,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const register = useCallback(
     async (input: Registration) => {
       const session = await api.register({ ...input, email: input.email.trim().toLowerCase() });
-      await saveSession(session.token, session.user);
+      await saveSession(session.accessToken || session.token || '', session.user, session.refreshToken);
     },
     [saveSession],
   );
@@ -80,7 +78,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       isLoading,
       login,
       register,
-      logout: clearSession,
+      logout: async () => { await api.logout(); await clearSession(); },
+      logoutAll: async () => { await api.logoutAll(); await clearSession(); },
       can: (permission) => Boolean(user?.permissions.includes(permission)),
     }),
     [clearSession, isLoading, login, register, user],

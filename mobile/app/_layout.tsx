@@ -40,6 +40,11 @@ export default function RootLayout() {
           <Stack.Screen name="payroll/[id]" options={{ title: 'Payroll details' }} />
           <Stack.Screen name="transactions" options={{ title: 'Transactions' }} />
           <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
+          <Stack.Screen name="employee/[id]" options={{ title: 'Employee details' }} />
+          <Stack.Screen name="transaction/[id]" options={{ title: 'Transaction details' }} />
+          <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+          <Stack.Screen name="support" options={{ title: 'Support' }} />
+          <Stack.Screen name="support/[id]" options={{ title: 'Support ticket' }} />
         </Stack>
       </AuthProvider>
     </QueryClientProvider>

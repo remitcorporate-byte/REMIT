@@ -2,7 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { api, formatNaira } from '@/src/api/client';
 import { useAuth } from '@/src/auth/auth-provider';
@@ -14,7 +14,7 @@ export default function EmployeesScreen() {
   const [search, setSearch] = useState('');
   const employees = useQuery({
     queryKey: ['employees', search],
-    queryFn: () => api.employees(search),
+    queryFn: () => api.employees(search, can('employee.manage')),
     enabled: can('employee.read'),
   });
 
@@ -33,10 +33,11 @@ export default function EmployeesScreen() {
         />
       }>
       <View style={styles.header}>
-        <PageHeading description="Your active workforce and salary details." title="Employees" />
+        <PageHeading description="Your active workforce and salary details." title="Employees" hideTitle />
         {can('employee.manage') ? (
-          <Pressable onPress={() => router.push('/employee/new')} style={styles.add}>
+            <Pressable accessibilityLabel="Add employee" accessibilityRole="button" onPress={() => router.push('/employee/new')} style={styles.add}>
             <MaterialIcons color={colors.surface} name="person-add" size={20} />
+            <Text style={styles.addText}>Add employee</Text>
           </Pressable>
         ) : null}
       </View>
@@ -52,11 +53,12 @@ export default function EmployeesScreen() {
         />
       </View>
       <ErrorMessage message={employees.error instanceof Error ? employees.error.message : null} />
-      {!employees.data?.length ? (
+      {employees.isLoading ? <ActivityIndicator color={colors.primary} /> : employees.error ? null : !employees.data?.length ? (
         <EmptyState title="No employees found" description="Add your first employee or change the search term." />
       ) : (
         employees.data.map((employee) => (
-          <Card key={employee.id} style={styles.employee}>
+          <Pressable key={employee.id} onPress={() => router.push((`/employee/${employee.id}`) as never)} style={({ pressed }) => pressed && styles.pressed}>
+          <Card style={styles.employee}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{employee.firstName[0]}{employee.lastName[0]}</Text>
             </View>
@@ -66,7 +68,9 @@ export default function EmployeesScreen() {
               <Text style={styles.salary}>{formatNaira(employee.salary)} · {employee.paymentFrequency.toLowerCase()}</Text>
             </View>
             <Badge label={employee.isActive ? 'Active' : 'Inactive'} tone={employee.isActive ? 'success' : 'neutral'} />
+            <MaterialIcons color={colors.muted} name="chevron-right" size={22} />
           </Card>
+          </Pressable>
         ))
       )}
     </Screen>
@@ -75,7 +79,8 @@ export default function EmployeesScreen() {
 
 const styles = StyleSheet.create({
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  add: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: 14, height: 48, justifyContent: 'center', width: 48 },
+  add: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: 14, flexDirection: 'row', gap: 6, minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
+  addText: { color: colors.surface, fontSize: 13, fontWeight: '800' },
   search: {
     alignItems: 'center',
     backgroundColor: colors.surface,
@@ -94,4 +99,5 @@ const styles = StyleSheet.create({
   employeeName: { color: colors.ink, fontSize: 15, fontWeight: '800' },
   meta: { color: colors.muted, fontSize: 12 },
   salary: { color: colors.primaryDark, fontSize: 12, fontWeight: '700' },
+  pressed: { opacity: 0.7 },
 });

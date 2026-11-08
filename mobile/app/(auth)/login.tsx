@@ -63,6 +63,7 @@ export default function LoginScreen() {
           />
           <ErrorMessage message={error} />
           <Button disabled={!email || !password} loading={loading} onPress={handleLogin} title="Sign in" />
+          <Link href="/(auth)/forgot-password" style={styles.link}>Forgot password?</Link>
         </View>
 
         <Text style={styles.footer}>

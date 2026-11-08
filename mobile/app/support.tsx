@@ -1,0 +1,24 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { api, formatDateTime } from '@/src/api/client';
+import { useAuth } from '@/src/auth/auth-provider';
+import { Badge, Button, Card, EmptyState, ErrorMessage, Field, PageHeading, Screen } from '@/src/components/ui';
+import { colors } from '@/src/constants/theme';
+import type { SupportTicketCategory } from '@/src/types/api';
+
+const categories: { value: SupportTicketCategory; label: string }[] = [
+  { value: 'GENERAL', label: 'General' }, { value: 'PAYMENT_FAILURE', label: 'Payment failure' }, { value: 'WALLET_FUNDING', label: 'Wallet funding' }, { value: 'BANK_VERIFICATION', label: 'Bank verification' }, { value: 'PAYROLL_ISSUE', label: 'Payroll issue' }, { value: 'ACCOUNT_ACCESS', label: 'Account access' },
+];
+export default function SupportScreen() {
+  const { user, can } = useAuth();
+  const queryClient = useQueryClient();
+  const tickets = useQuery({ queryKey: ['support-tickets'], queryFn: api.supportTickets, enabled: Boolean(user) && can('support.read') });
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ category: 'GENERAL' as SupportTicketCategory, subject: '', message: '' });
+  const create = useMutation({ mutationFn: () => api.createSupportTicket({ ...form, priority: 'NORMAL' }), onSuccess: async (ticket) => { setOpen(false); setForm({ category: 'GENERAL', subject: '', message: '' }); await queryClient.invalidateQueries({ queryKey: ['support-tickets'] }); router.push(('/support/' + ticket.id) as never); } });
+  if (!can('support.read')) return <Screen><EmptyState title="Support unavailable" description="Your account does not have support access." /></Screen>;
+  return <Screen><PageHeading title="Support" description="Get help from the REMIT team." hideTitle /><Button title={open ? 'Cancel' : 'New ticket'} onPress={() => setOpen((value) => !value)} variant="secondary" />{open ? <Card style={styles.section}><Text style={styles.title}>Create ticket</Text><Text style={styles.label}>Category</Text><View style={styles.categories}>{categories.map((item) => <Pressable key={item.value} onPress={() => setForm({ ...form, category: item.value })} style={[styles.category, form.category === item.value && styles.categoryActive]}><Text style={styles.categoryText}>{item.label}</Text></Pressable>)}</View><Field label="Subject" value={form.subject} onChangeText={(subject) => setForm({ ...form, subject })} /><Field label="Message" multiline value={form.message} onChangeText={(message) => setForm({ ...form, message })} /><ErrorMessage message={create.error instanceof Error ? create.error.message : null} /><Button disabled={form.subject.trim().length < 5 || form.message.trim().length < 10} loading={create.isPending} title="Submit ticket" onPress={() => create.mutate()} /></Card> : null}<Card style={styles.section}><Text style={styles.title}>Your tickets</Text>{tickets.isLoading ? <ActivityIndicator color={colors.primary} /> : tickets.error ? <ErrorMessage message={tickets.error instanceof Error ? tickets.error.message : 'Could not load tickets'} /> : !tickets.data?.length ? <EmptyState title="No support tickets" description="Create a ticket when you need help." /> : tickets.data.map((ticket) => <Pressable key={ticket.id} onPress={() => router.push(('/support/' + ticket.id) as never)} style={({ pressed }) => pressed && styles.pressed}><View style={styles.ticket}><View style={styles.ticketTop}><Text style={styles.reference}>{ticket.reference}</Text><Badge label={ticket.status} /></View><Text style={styles.subject}>{ticket.subject}</Text><Text style={styles.muted}>Last activity {formatDateTime(ticket.lastMessageAt)}</Text></View></Pressable>)}</Card></Screen>;
+}
+const styles = StyleSheet.create({ section: { gap: 12 }, title: { color: colors.ink, fontSize: 18, fontWeight: '900' }, label: { color: colors.ink, fontSize: 13, fontWeight: '700' }, categories: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, category: { backgroundColor: colors.background, borderColor: colors.line, borderRadius: 10, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 9 }, categoryActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary }, categoryText: { color: colors.ink, fontSize: 12, fontWeight: '700' }, ticket: { borderBottomColor: colors.line, borderBottomWidth: 1, gap: 5, paddingVertical: 12 }, ticketTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }, reference: { color: colors.primary, fontSize: 12, fontWeight: '800' }, subject: { color: colors.ink, fontSize: 15, fontWeight: '800' }, muted: { color: colors.muted, fontSize: 12 }, pressed: { opacity: 0.7 } });

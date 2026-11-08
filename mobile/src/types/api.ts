@@ -23,6 +23,10 @@ export type Permission =
   | 'transaction.read'
   | 'transaction.export'
   | 'notification.read'
+  | 'support.read'
+  | 'support.create'
+  | 'support.reply'
+  | 'support.close'
   | 'audit.read';
 
 export type User = {
@@ -60,7 +64,16 @@ export type Employee = {
   paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
   nextPaymentDate?: string | null;
   isActive: boolean;
+  transactions?: Transaction[];
+  payrollEmployees?: { id: string; amount: number; status: Transaction['status']; payroll?: { scheduledDate: string; status: PayrollStatus } | null }[];
 };
+
+export type SupportTicketCategory = 'PAYMENT_FAILURE' | 'WALLET_FUNDING' | 'BANK_VERIFICATION' | 'PAYROLL_ISSUE' | 'ACCOUNT_ACCESS' | 'GENERAL';
+export type SupportTicketStatus = 'OPEN' | 'IN_PROGRESS' | 'WAITING_FOR_CUSTOMER' | 'RESOLVED' | 'CLOSED';
+export type SupportTicketPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+export type SupportMessage = { id: string; body: string; senderType: 'CUSTOMER' | 'SUPPORT' | 'SYSTEM'; createdAt: string; author?: Pick<User, 'firstName' | 'lastName'> | null };
+export type SupportTicket = { id: string; reference: string; category: SupportTicketCategory; priority: SupportTicketPriority; status: SupportTicketStatus; subject: string; lastMessageAt: string; messages: SupportMessage[]; payroll?: Pick<Payroll, 'id' | 'status' | 'scheduledDate' | 'totalAmount'> | null; transaction?: Pick<Transaction, 'id' | 'type' | 'status' | 'amount' | 'description' | 'createdAt'> | null; _count?: { messages: number } };
+export type Session = { id: string; deviceName?: string | null; userAgent?: string | null; ip?: string | null; createdAt: string; lastUsedAt: string; current: boolean };
 
 export type Bank = {
   name: string;
@@ -133,11 +146,14 @@ export type AppNotification = {
 
 export type Dashboard = {
   employeeCount: number;
+  payrollCount: number;
+  pendingApprovalCount: number;
   walletBalance: number;
   reservedBalance: number;
   availableBalance: number;
   currency: string;
   upcomingPayrolls: Payroll[];
+  pendingApprovalPayrolls: Payroll[];
   recentTransactions: Transaction[];
 };
 

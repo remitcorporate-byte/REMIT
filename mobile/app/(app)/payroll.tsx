@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { api, formatDate, formatNaira } from '@/src/api/client';
 import { useAuth } from '@/src/auth/auth-provider';
@@ -39,15 +39,16 @@ export default function PayrollScreen() {
         />
       }>
       <View style={styles.header}>
-        <PageHeading description="Prepare, approve and monitor every pay run." title="Payroll" />
+        <PageHeading description="Prepare, approve and monitor every pay run." title="Payroll" hideTitle />
         {can('payroll.create') ? (
-          <Pressable onPress={() => router.push('/payroll/new')} style={styles.add}>
+          <Pressable accessibilityLabel="New payroll" accessibilityRole="button" onPress={() => router.push('/payroll/new')} style={styles.add}>
             <MaterialIcons color={colors.surface} name="add" size={24} />
+            <Text style={styles.addText}>New payroll</Text>
           </Pressable>
         ) : null}
       </View>
       <ErrorMessage message={payrolls.error instanceof Error ? payrolls.error.message : null} />
-      {!payrolls.data?.length ? (
+      {payrolls.isLoading ? <ActivityIndicator color={colors.primary} /> : payrolls.error ? null : !payrolls.data?.length ? (
         <EmptyState title="No payrolls yet" description="Create a draft when you are ready to pay your team." />
       ) : (
         payrolls.data.map((payroll) => (
@@ -69,7 +70,8 @@ export default function PayrollScreen() {
 
 const styles = StyleSheet.create({
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  add: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: 14, height: 48, justifyContent: 'center', width: 48 },
+  add: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: 14, flexDirection: 'row', gap: 6, minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
+  addText: { color: colors.surface, fontSize: 13, fontWeight: '800' },
   payroll: { gap: 9 },
   topline: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   amount: { color: colors.ink, fontSize: 25, fontWeight: '900', letterSpacing: -0.5 },

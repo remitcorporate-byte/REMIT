@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { colors, radius, shadow } from '@/src/constants/theme';
+import { labelFor } from '@/src/lib/labels';
 
 export function Screen({ children, refreshControl }: PropsWithChildren<{ refreshControl?: ReactNode }>) {
   return (
@@ -30,11 +31,11 @@ export function Card({ children, style }: PropsWithChildren<{ style?: StyleProp<
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
-export function PageHeading({ eyebrow, title, description }: { eyebrow?: string; title: string; description?: string }) {
+export function PageHeading({ eyebrow, title, description, hideTitle }: { eyebrow?: string; title: string; description?: string; hideTitle?: boolean }) {
   return (
     <View style={styles.heading}>
       {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-      <Text style={styles.title}>{title}</Text>
+      {!hideTitle ? <Text style={styles.title}>{title}</Text> : null}
       {description ? <Text style={styles.description}>{description}</Text> : null}
     </View>
   );
@@ -108,7 +109,7 @@ export function Badge({ label, tone = 'neutral' }: { label: string; tone?: 'neut
         tone === 'warning' && styles.badgeWarning,
         tone === 'danger' && styles.badgeDanger,
       ]}>
-      <Text style={styles.badgeText}>{label.replaceAll('_', ' ')}</Text>
+      <Text style={styles.badgeText}>{labelFor(label)}</Text>
     </View>
   );
 }

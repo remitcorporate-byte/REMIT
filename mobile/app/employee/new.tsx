@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { showMessage } from '@/src/lib/confirm';
 
 import { api } from '@/src/api/client';
 import { useAuth } from '@/src/auth/auth-provider';
@@ -67,12 +68,14 @@ export default function NewEmployeeScreen() {
     return <Screen><ErrorMessage message="You do not have permission to add employees." /></Screen>;
   }
 
+  const salaryValue = Number(form.salary.replaceAll(',', ''));
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
   const requiredComplete =
-    form.firstName && form.lastName && form.email && form.salary && form.bankName && form.bankCode && form.accountNumber;
+    form.firstName && form.lastName && emailValid && Number.isFinite(salaryValue) && salaryValue > 0 && form.bankName && form.bankCode && form.accountNumber.length === 10 && form.accountName;
 
   function applyKnownBank() {
     if (!selectedBank) {
-      Alert.alert('Bank not found', 'Enter a valid Paystack bank code, or enter the bank name manually.');
+      showMessage('Bank not found', 'Enter a valid Paystack bank code, or enter the bank name manually.');
       return;
     }
     setForm((current) => ({ ...current, bankName: selectedBank.name }));
@@ -88,6 +91,7 @@ export default function NewEmployeeScreen() {
           <View style={styles.half}><Field label="Last name" onChangeText={set('lastName')} value={form.lastName} /></View>
         </View>
         <Field autoCapitalize="none" keyboardType="email-address" label="Email" onChangeText={set('email')} value={form.email} />
+        {!!form.email && !emailValid ? <ErrorMessage message="Enter a valid email address." /> : null}
         <Field keyboardType="phone-pad" label="Phone (optional)" onChangeText={set('phone')} value={form.phone} />
         <View style={styles.row}>
           <View style={styles.half}><Field label="Department" onChangeText={set('department')} value={form.department} /></View>

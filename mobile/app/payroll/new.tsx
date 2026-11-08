@@ -30,6 +30,11 @@ export default function NewPayrollScreen() {
 
   const activeEmployees = employees.data?.filter((employee) => employee.isActive) || [];
   const total = activeEmployees.filter((employee) => selected.includes(employee.id)).reduce((sum, employee) => sum + employee.salary, 0);
+  const parsedDate = scheduledDate ? new Date(scheduledDate) : null;
+  const dateInvalid = Boolean(scheduledDate && (!parsedDate || Number.isNaN(parsedDate.getTime())));
+  // Compare calendar days, so today's date is allowed (MOB-005).
+  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+  const dateInPast = Boolean(parsedDate && new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate()) < startOfToday);
 
   function toggle(id: string) {
     setSelected((current) => (current.includes(id) ? current.filter((employeeId) => employeeId !== id) : [...current, id]));
@@ -43,7 +48,8 @@ export default function NewPayrollScreen() {
         <Text style={styles.summaryAmount}>{formatNaira(total)}</Text>
         <Text style={styles.summaryMeta}>{selected.length} employees selected</Text>
       </Card>
-      <Field label="Scheduled date" onChangeText={setScheduledDate} placeholder="2026-08-31" value={scheduledDate} />
+      <Field label="Scheduled date (YYYY-MM-DD)" onChangeText={setScheduledDate} placeholder="YYYY-MM-DD" value={scheduledDate} />
+      {dateInvalid || dateInPast ? <ErrorMessage message={dateInvalid ? 'Enter a valid date.' : 'Choose today or a future date.'} /> : null}
       <Field label="Note (optional)" multiline onChangeText={setNote} placeholder="August monthly payroll" value={note} />
       <View style={styles.employeeHeader}>
         <Text style={styles.sectionTitle}>Employees</Text>
@@ -74,7 +80,7 @@ export default function NewPayrollScreen() {
       )}
       <ErrorMessage message={create.error instanceof Error ? create.error.message : null} />
       <Button
-        disabled={!scheduledDate || !selected.length}
+        disabled={!scheduledDate || dateInvalid || dateInPast || !selected.length}
         loading={create.isPending}
         onPress={() => create.mutate()}
         title="Create payroll draft"

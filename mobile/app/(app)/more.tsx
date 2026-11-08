@@ -2,14 +2,16 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { confirmAction } from '@/src/lib/confirm';
 
 import { API_URL, api, NOTIFICATIONS_KEY } from '@/src/api/client';
 import { useAuth } from '@/src/auth/auth-provider';
 import { Badge, Button, Card, ErrorMessage, PageHeading, Screen } from '@/src/components/ui';
 import { colors } from '@/src/constants/theme';
+import { labelFor } from '@/src/lib/labels';
 
 export default function MoreScreen() {
-  const { user, logout, can } = useAuth();
+  const { user, logout, logoutAll, can } = useAuth();
   const router = useRouter();
   const unread = useQuery({
     queryKey: [...NOTIFICATIONS_KEY, 'summary'],
@@ -25,7 +27,7 @@ export default function MoreScreen() {
 
   return (
     <Screen>
-      <PageHeading description="Your account, permissions and app connection." title="More" />
+      <PageHeading description="Your account, permissions and app connection." title="More" hideTitle />
       <Card style={styles.profile}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{user?.firstName[0]}{user?.lastName[0]}</Text>
@@ -49,6 +51,8 @@ export default function MoreScreen() {
         {can('transaction.read') ? (
           <MenuRow icon="receipt-long" label="Transactions" onPress={() => router.push('/transactions')} />
         ) : null}
+        <MenuRow icon="settings" label="Settings" onPress={() => router.push('/settings' as never)} />
+        {can('support.read') ? <MenuRow icon="support-agent" label="Support" onPress={() => router.push('/support' as never)} /> : null}
       </Card>
 
       <Card style={styles.permissions}>
@@ -59,7 +63,7 @@ export default function MoreScreen() {
         <Text style={styles.copy}>{user?.permissions.length || 0} capabilities enabled for this account.</Text>
         <View style={styles.permissionList}>
           {user?.permissions.slice(0, 8).map((permission) => (
-            <Text key={permission} style={styles.permission}>• {permission.replace('.', ' ')}</Text>
+            <Text key={permission} style={styles.permission}>• {labelFor(permission)}</Text>
           ))}
         </View>
       </Card>
@@ -79,6 +83,7 @@ export default function MoreScreen() {
       ) : null}
 
       <Button onPress={() => void logout()} title="Sign out" variant="secondary" />
+      <Button onPress={async () => { if (await confirmAction({ title: 'Sign out everywhere?', message: 'All active REMIT sessions, including this one, will be signed out.', confirmText: 'Sign out', destructive: true })) void logoutAll(); }} title="Sign out of all devices" variant="secondary" />
       <Text style={styles.version}>REMIT Mobile · Expo SDK 54</Text>
     </Screen>
   );

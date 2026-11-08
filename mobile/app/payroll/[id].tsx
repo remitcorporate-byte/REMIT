@@ -1,22 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
+import { confirmAction } from '@/src/lib/confirm';
+import { useState } from 'react';
 
 import { api, formatDate, formatNaira } from '@/src/api/client';
 import { useAuth } from '@/src/auth/auth-provider';
-import { Badge, Button, Card, EmptyState, ErrorMessage, Screen } from '@/src/components/ui';
+import { Badge, Button, Card, EmptyState, ErrorMessage, Field, Screen } from '@/src/components/ui';
 import { colors } from '@/src/constants/theme';
 
 export default function PayrollDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { can } = useAuth();
+  const [approvalRequired, setApprovalRequired] = useState(false);
+  const [approvalCode, setApprovalCode] = useState('');
   const queryClient = useQueryClient();
   const payroll = useQuery({ queryKey: ['payroll', id], queryFn: () => api.payroll(id), enabled: Boolean(id) && can('payroll.read') });
 
   const action = useMutation({
     mutationFn: async (name: 'submit' | 'approve' | 'cancel' | 'retry') => {
       if (name === 'submit') return api.submitPayroll(id);
-      if (name === 'approve') return api.approvePayroll(id);
+      if (name === 'approve') return api.approvePayroll(id, approvalCode || undefined);
       if (name === 'cancel') return api.cancelPayroll(id);
       return api.retryPayroll(id);
     },
@@ -53,13 +57,13 @@ export default function PayrollDetailsScreen() {
               <Button loading={action.isPending} onPress={() => action.mutate('submit')} title="Submit for approval" />
             ) : null}
             {data.status === 'PENDING_APPROVAL' && can('payroll.approve') ? (
-              <Button loading={action.isPending} onPress={() => action.mutate('approve')} title="Approve payroll" />
+              approvalRequired ? <><Field keyboardType="number-pad" label="Approval code" onChangeText={setApprovalCode} value={approvalCode} /><Button disabled={approvalCode.length !== 6} loading={action.isPending} onPress={() => action.mutate('approve')} title="Confirm approval" /></> : <Button loading={action.isPending} onPress={async () => { if (!(await confirmAction({ title: 'Approve payroll?', message: 'This schedules the payment run and reserves the funds from your wallet.', confirmText: 'Approve' }))) return; const result = await api.approvalCode(id); if (result.required) setApprovalRequired(true); else action.mutate('approve'); }} title="Approve payroll" />
             ) : null}
             {data.status === 'FAILED' && can('payroll.retry') ? (
-              <Button loading={action.isPending} onPress={() => action.mutate('retry')} title="Retry failed payments" />
+              <Button loading={action.isPending} onPress={async () => { if (await confirmAction({ title: 'Retry failed payments?', message: 'The failed employee payments will be attempted again.', confirmText: 'Retry' })) action.mutate('retry'); }} title="Retry failed payments" />
             ) : null}
             {['DRAFT', 'PENDING_APPROVAL', 'SCHEDULED'].includes(data.status) && can('payroll.cancel') ? (
-              <Button loading={action.isPending} onPress={() => action.mutate('cancel')} title="Cancel payroll" variant="danger" />
+              <Button loading={action.isPending} onPress={async () => { if (await confirmAction({ title: 'Cancel payroll?', message: 'This cannot be undone.', confirmText: 'Cancel payroll', cancelText: 'Keep payroll', destructive: true })) action.mutate('cancel'); }} title="Cancel payroll" variant="danger" />
             ) : null}
           </View>
           <ErrorMessage message={action.error instanceof Error ? action.error.message : null} />
