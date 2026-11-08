@@ -1,13 +1,13 @@
+import { prisma } from '../lib/prisma';
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { AppError } from '../middleware/errorHandler';
 import { paystackService } from '../services/paystack.service';
 import { getPaginationParams, paginatedResponse } from '../utils/formatters';
 import { getNextPaymentDate } from '../utils/dateHelpers';
 import { auditService } from '../services/audit.service';
+import { accountNumberLast4, decryptField, encryptField } from '../utils/crypto';
 
-const prisma = new PrismaClient();
 
 const createEmployeeSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
@@ -43,6 +43,10 @@ const verifyBankSchema = z.object({
   bankCode: z.string().min(1, 'Bank code is required'),
   accountNumber: z.string().min(10, 'Account number must be at least 10 digits'),
 });
+
+function withDecryptedAccountNumber<T extends { accountNumber: string }>(employee: T) {
+  return { ...employee, accountNumber: decryptField(employee.accountNumber) };
+}
 
 // @desc    List Paystack banks
 // @route   GET /api/v1/employees/banks
@@ -133,7 +137,8 @@ export const createEmployee = async (req: Request, res: Response, next: NextFunc
         phone: body.phone,
         bankName: body.bankName,
         bankCode: body.bankCode,
-        accountNumber: body.accountNumber,
+        accountNumber: encryptField(body.accountNumber),
+        accountNumberLast4: accountNumberLast4(body.accountNumber),
         accountName,
         salary: body.salary,
         department: body.department,
@@ -155,7 +160,7 @@ export const createEmployee = async (req: Request, res: Response, next: NextFunc
 
     res.status(201).json({
       success: true,
-      data: employee,
+      data: withDecryptedAccountNumber(employee),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -189,6 +194,7 @@ export const getEmployees = async (req: Request, res: Response, next: NextFuncti
           { firstName: { contains: search, mode: 'insensitive' as const } },
           { lastName: { contains: search, mode: 'insensitive' as const } },
           { email: { contains: search, mode: 'insensitive' as const } },
+          { accountNumberLast4: { contains: search } },
         ],
       }),
     };
@@ -203,7 +209,7 @@ export const getEmployees = async (req: Request, res: Response, next: NextFuncti
       prisma.employee.count({ where }),
     ]);
 
-    res.json(paginatedResponse(employees, total, page, limit));
+    res.json(paginatedResponse(employees.map(withDecryptedAccountNumber), total, page, limit));
   } catch (error) {
     next(error);
   }
@@ -243,7 +249,7 @@ export const getEmployee = async (req: Request, res: Response, next: NextFunctio
 
     res.json({
       success: true,
-      data: employee,
+      data: withDecryptedAccountNumber(employee),
     });
   } catch (error) {
     next(error);
@@ -272,7 +278,7 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
     let accountName = existing.accountName;
 
     if (body.accountNumber || body.bankCode) {
-      const accNum = body.accountNumber || existing.accountNumber;
+      const accNum = body.accountNumber || decryptField(existing.accountNumber);
       const bankCd = body.bankCode || existing.bankCode;
 
       try {
@@ -294,10 +300,15 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
       }
     }
 
+    const { accountNumber: nextAccountNumber, ...otherBody } = body;
     const employee = await prisma.employee.update({
       where: { id: req.params.id as string },
       data: {
-        ...body,
+        ...otherBody,
+        ...(nextAccountNumber && {
+          accountNumber: encryptField(nextAccountNumber),
+          accountNumberLast4: accountNumberLast4(nextAccountNumber),
+        }),
         ...(body.nextPaymentDate && {
           nextPaymentDate: new Date(body.nextPaymentDate),
         }),
@@ -317,7 +328,7 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
 
     res.json({
       success: true,
-      data: employee,
+      data: withDecryptedAccountNumber(employee),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

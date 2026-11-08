@@ -72,7 +72,7 @@ export default function PayrollDetailsScreen() {
               <Card key={item.id} style={styles.employee}>
                 <View style={styles.employeeCopy}>
                   <Text style={styles.employeeName}>{item.employee.firstName} {item.employee.lastName}</Text>
-                  <Text style={styles.meta}>{item.employee.bankName} · ••••{item.employee.accountNumber.slice(-4)}</Text>
+                  <Text style={styles.meta}>{item.employee.bankName} · ••••{item.employee.accountNumberLast4 || '••••'}</Text>
                 </View>
                 <View style={styles.employeeAmount}>
                   <Text style={styles.salary}>{formatNaira(item.amount)}</Text>

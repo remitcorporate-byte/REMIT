@@ -1,11 +1,10 @@
+import { prisma } from '../lib/prisma';
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from '../services/audit.service';
 
-const prisma = new PrismaClient();
 const teamRoles = ['ADMIN', 'FINANCE', 'VIEWER'] as const;
 
 const inviteSchema = z.object({

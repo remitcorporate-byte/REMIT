@@ -1,10 +1,9 @@
+import { prisma } from '../src/lib/prisma';
 import axios from 'axios';
-import { PrismaClient } from '@prisma/client';
 import { processPayroll } from '../src/jobs/process-payroll.job';
 import { recoverStalePayrolls } from '../src/jobs/payroll-scheduler.job';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5000/api/v1';
-const prisma = new PrismaClient();
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);

@@ -171,6 +171,7 @@ model Employee {
   bankName              String
   bankCode              String
   accountNumber         String
+  accountNumberLast4    String?
   accountName           String
   salary                Int // in kobo
   department            String?
@@ -188,6 +189,7 @@ model Employee {
 
   @@unique([companyId, email])
   @@index([companyId])
+  @@index([companyId, accountNumberLast4])
 }
 
 model Payroll {

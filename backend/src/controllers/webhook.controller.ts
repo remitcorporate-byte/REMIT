@@ -1,12 +1,12 @@
+import { prisma } from '../lib/prisma';
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import config from '../config';
 import { notificationService } from '../services/notification.service';
 import { getNextPaymentDate } from '../utils/dateHelpers';
 import { auditService } from '../services/audit.service';
 
-const prisma = new PrismaClient();
 
 type PaystackWebhookRequest = Request & { rawBody?: Buffer };
 const transferTransactionInclude = {

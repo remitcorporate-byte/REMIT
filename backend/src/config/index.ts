@@ -5,15 +5,20 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const env = process.env.NODE_ENV || 'development';
 const isProduction = env === 'production';
+const isTest = env === 'test';
 const requiredRuntimeVars = ['DATABASE_URL', 'JWT_SECRET', 'PAYSTACK_SECRET_KEY'];
 const requiredProductionVars = process.env.PAYROLL_QUEUE_MODE === 'in-process'
-  ? requiredRuntimeVars
-  : [...requiredRuntimeVars, 'REDIS_URL'];
+  ? [...requiredRuntimeVars, 'FIELD_ENCRYPTION_KEY']
+  : [...requiredRuntimeVars, 'REDIS_URL', 'FIELD_ENCRYPTION_KEY'];
 
 for (const varName of requiredProductionVars) {
   if (isProduction && !process.env[varName]) {
     throw new Error(`${varName} is required in production`);
   }
+}
+
+if (!process.env.JWT_SECRET && !isTest) {
+  throw new Error('JWT_SECRET is required in every non-test environment');
 }
 
 if (!isProduction) {
@@ -41,7 +46,7 @@ const config = {
   },
 
   jwt: {
-    secret: process.env.JWT_SECRET || (isProduction ? '' : 'fallback-secret-change-me'),
+    secret: process.env.JWT_SECRET || 'test-only-jwt-secret',
     expire: process.env.JWT_EXPIRE || '30d',
   },
 

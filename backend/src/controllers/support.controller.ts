@@ -1,7 +1,7 @@
+import { prisma } from '../lib/prisma';
 import { NextFunction, Request, Response } from 'express';
 import {
   Prisma,
-  PrismaClient,
   SupportTicketCategory,
   SupportTicketStatus,
 } from '@prisma/client';
@@ -10,7 +10,6 @@ import { AppError } from '../middleware/errorHandler';
 import { auditService } from '../services/audit.service';
 import { generateReference, getPaginationParams, paginatedResponse } from '../utils/formatters';
 
-const prisma = new PrismaClient();
 
 const createTicketSchema = z.object({
   category: z.nativeEnum(SupportTicketCategory),

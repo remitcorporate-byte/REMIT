@@ -79,11 +79,11 @@ CLOUDINARY_API_SECRET=abcdefghijklmnopqrstuvwxyz
 SENTRY_DSN=https://xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx@o123456.ingest.sentry.io/1234567
 
 # ======================
-# ENCRYPTION (Optional)
+# ENCRYPTION (Required in production)
 # ======================
-# For encrypting sensitive data like bank account numbers
-# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-ENCRYPTION_KEY=64_character_hex_string_here
+# AES-256-GCM key for sensitive fields. Must be base64 for exactly 32 bytes.
+# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+FIELD_ENCRYPTION_KEY=base64_32_byte_key_here
 
 # ======================
 # RATE LIMITING

@@ -1,3 +1,4 @@
+import { prisma } from '../lib/prisma';
 import { Request, Response, NextFunction } from 'express';
 import { PayrollStatus, Prisma, PrismaClient } from '@prisma/client';
 import { z } from 'zod';
@@ -6,7 +7,6 @@ import { getPaginationParams, paginatedResponse } from '../utils/formatters';
 import { payrollQueue } from '../queues/payroll.queue';
 import { auditService } from '../services/audit.service';
 
-const prisma = new PrismaClient();
 
 const payrollInputSchema = z.object({
   scheduledDate: z.string().datetime('Invalid date format'),
@@ -91,7 +91,7 @@ function payrollInclude() {
             lastName: true,
             email: true,
             bankName: true,
-            accountNumber: true,
+            accountNumberLast4: true,
             accountName: true,
             salary: true,
           },
@@ -514,7 +514,7 @@ export const exportPayroll = async (req: Request, res: Response, next: NextFunct
         `${row.employee.firstName} ${row.employee.lastName}`,
         row.employee.email,
         row.employee.bankName,
-        row.employee.accountNumber.slice(-4),
+        row.employee.accountNumberLast4 || '',
         row.amount,
         row.status,
         row.transaction?.paystackReference || '',

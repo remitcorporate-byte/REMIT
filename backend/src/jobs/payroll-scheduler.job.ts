@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { payrollQueue } from '../queues/payroll.queue';
 import { reconcilePendingTransfers } from './transfer-reconciliation.job';
 
-const prisma = new PrismaClient();
 let schedulerStarted = false;
 let schedulerTimer: NodeJS.Timeout | null = null;
 

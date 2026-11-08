@@ -7,11 +7,13 @@
     "dev": "nodemon --exec ts-node src/server.ts",
     "dev:worker": "nodemon --exec ts-node src/workers/payroll.worker.ts",
     "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "start": "node dist/server.js",
     "worker:payroll": "node dist/workers/payroll.worker.js",
     "test:redis": "ts-node scripts/test-redis-queue.ts",
     "test:redis-payroll": "ts-node scripts/test-redis-payroll-e2e.ts",
-    "test:local-supabase": "powershell -ExecutionPolicy Bypass -File scripts/test-local-supabase.ps1",
+    "test:local-supabase": "bash scripts/test-local-supabase.sh",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
@@ -48,6 +50,7 @@
     "nodemon": "^3.1.11",
     "prisma": "^5.22.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
   }
 }

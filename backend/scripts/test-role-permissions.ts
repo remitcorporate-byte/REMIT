@@ -1,10 +1,10 @@
+import { prisma } from '../src/lib/prisma';
 import axios from 'axios';
 import bcrypt from 'bcryptjs';
-import { PrismaClient, Role } from '@prisma/client';
+import { Role } from '@prisma/client';
 import { getPermissions, Permission } from '../src/auth/permissions';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5000/api/v1';
-const prisma = new PrismaClient();
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);

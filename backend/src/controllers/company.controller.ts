@@ -1,10 +1,9 @@
+import { prisma } from '../lib/prisma';
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { AppError } from '../middleware/errorHandler';
 import { payrollQueue } from '../queues/payroll.queue';
 
-const prisma = new PrismaClient();
 
 const updateCompanySchema = z.object({
   name: z.string().min(1).optional(),

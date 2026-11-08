@@ -24,6 +24,13 @@ export function generateReference(prefix: string = 'REMIT'): string {
   return `${prefix}_${timestamp}_${random}`.toUpperCase();
 }
 
+/** Paystack-safe, stable reference reused for every attempt for one payroll row. */
+export function generatePayrollTransferReference(payrollEmployeeId: string): string {
+  const sanitized = payrollEmployeeId.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  const reference = `pay_${sanitized}`.slice(0, 50);
+  return reference.length >= 16 ? reference : `${reference}${'0'.repeat(16 - reference.length)}`;
+}
+
 // Paginate helper
 export function getPaginationParams(page?: number, limit?: number) {
   const p = Math.max(1, page || 1);

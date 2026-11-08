@@ -1,9 +1,8 @@
+import { prisma } from '../lib/prisma';
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AppError } from '../middleware/errorHandler';
 import { getPaginationParams, paginatedResponse } from '../utils/formatters';
 
-const prisma = new PrismaClient();
 
 // @desc    Get all transactions
 // @route   GET /api/v1/transactions

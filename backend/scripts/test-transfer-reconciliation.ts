@@ -1,9 +1,9 @@
+import { prisma } from '../src/lib/prisma';
 import axios from 'axios';
-import { PrismaClient, TransactionStatus } from '@prisma/client';
+import { TransactionStatus } from '@prisma/client';
 import { reconcilePendingTransfers } from '../src/jobs/transfer-reconciliation.job';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5000/api/v1';
-const prisma = new PrismaClient();
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);

@@ -231,7 +231,7 @@ function PayrollDetail({ id, onClose, onChanged }: { id: string; onClose: () => 
                           <strong>{row.employee.firstName} {row.employee.lastName}</strong>
                           <small className="block text-slate-500">{row.employee.email}</small>
                         </td>
-                        <td className="px-3 py-3">{row.employee.bankName} ****{row.employee.accountNumber.slice(-4)}</td>
+                        <td className="px-3 py-3">{row.employee.bankName} ****{row.employee.accountNumberLast4 || '****'}</td>
                         <td className="px-3 py-3 font-bold">{formatNaira(row.amount)}</td>
                         <td className="px-3 py-3">{row.status}</td>
                         <td className="px-3 py-3">{row.transaction?.paystackReference || 'Awaiting transfer'}</td>

@@ -1,10 +1,10 @@
-import { Prisma, PrismaClient, TransactionStatus } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import { Prisma, TransactionStatus } from '@prisma/client';
 import { paystackService } from '../services/paystack.service';
 import { auditService } from '../services/audit.service';
 import { notificationService } from '../services/notification.service';
 import { getNextPaymentDate } from '../utils/dateHelpers';
 
-const prisma = new PrismaClient();
 
 const reconciliationInclude = {
   payrollEmployee: {
@@ -321,8 +321,20 @@ export async function reconcilePendingTransfers(options?: {
       );
       result.pending++;
     } catch (error) {
-      await releaseClaim(transaction.id, errorMessage(error));
-      result.errors++;
+      const providerStatus =
+        error && typeof error === 'object' && 'response' in error &&
+        error.response && typeof error.response === 'object' && 'status' in error.response
+          ? error.response.status
+          : undefined;
+      // Paystack may not have indexed a just-created transfer yet. Keep the
+      // deterministic reference pending so the next pass can safely retry.
+      if (providerStatus === 404) {
+        await releaseClaim(transaction.id);
+        result.pending++;
+      } else {
+        await releaseClaim(transaction.id, errorMessage(error));
+        result.errors++;
+      }
     }
   }
 

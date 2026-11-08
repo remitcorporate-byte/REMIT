@@ -98,7 +98,7 @@ export type Payroll = {
     id: string;
     amount: number;
     status: Transaction['status'];
-    employee: Pick<Employee, 'id' | 'firstName' | 'lastName' | 'email' | 'bankName' | 'accountNumber'>;
+    employee: Pick<Employee, 'id' | 'firstName' | 'lastName' | 'email' | 'bankName'> & { accountNumberLast4?: string | null };
   }[];
 };
 

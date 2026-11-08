@@ -1,5 +1,5 @@
+import { prisma } from '../lib/prisma';
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import authRoutes from './auth.routes';
 import companyRoutes from './company.routes';
 import employeeRoutes from './employee.routes';
@@ -13,7 +13,6 @@ import supportRoutes from './support.routes';
 import { payrollQueue } from '../queues/payroll.queue';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Health check
 router.get('/health', (_req: Request, res: Response) => {

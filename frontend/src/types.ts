@@ -109,7 +109,7 @@ export type PayrollEmployee = {
   id: string
   amount: number
   status: Transaction['status']
-  employee: Pick<Employee, 'id' | 'firstName' | 'lastName' | 'email' | 'bankName' | 'accountNumber' | 'accountName' | 'salary'>
+  employee: Pick<Employee, 'id' | 'firstName' | 'lastName' | 'email' | 'bankName' | 'accountName' | 'salary'> & { accountNumberLast4?: string | null }
   transaction?: Pick<Transaction, 'id' | 'status' | 'paystackReference' | 'paystackTransferId' | 'createdAt'> & {
     updatedAt?: string
   } | null

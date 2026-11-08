@@ -1,11 +1,12 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { paystackService } from '../services/paystack.service';
 import { notificationService } from '../services/notification.service';
-import { generateReference } from '../utils/formatters';
+import { generatePayrollTransferReference } from '../utils/formatters';
 import { getNextPaymentDate } from '../utils/dateHelpers';
 import { auditService } from '../services/audit.service';
+import { decryptField } from '../utils/crypto';
+import { classifyTransferError } from '../utils/transferErrors';
 
-const prisma = new PrismaClient();
 
 interface ProcessPayrollData {
   payrollId: string;
@@ -144,6 +145,7 @@ export async function processPayroll(data: ProcessPayrollData) {
 
     let successCount = 0;
     let failCount = 0;
+    let unknownCount = 0;
 
     // Process each employee
     for (const pe of payroll.payrollEmployees) {
@@ -153,13 +155,15 @@ export async function processPayroll(data: ProcessPayrollData) {
         await heartbeatPayroll(payrollId);
         console.log(`[ProcessPayroll] Processing employee: ${employee.firstName} ${employee.lastName} (${employee.id})`);
 
+        const accountNumber = decryptField(employee.accountNumber);
+
         // Ensure employee has a Paystack recipient code
         let recipientCode: string = employee.paystackRecipientCode || '';
         if (!recipientCode) {
           console.log(`[ProcessPayroll] Creating Paystack recipient for ${employee.id}...`);
           const recipient = await paystackService.createTransferRecipient({
             name: employee.accountName,
-            accountNumber: employee.accountNumber,
+            accountNumber,
             bankCode: employee.bankCode,
           });
           recipientCode = recipient.data.recipient_code;
@@ -171,17 +175,42 @@ export async function processPayroll(data: ProcessPayrollData) {
           });
         }
 
-        const reference = generateReference('PAY');
-        console.log(`[ProcessPayroll] Initiating transfer with reference: ${reference}`);
+        const deterministicReference = generatePayrollTransferReference(pe.id);
+        console.log(`[ProcessPayroll] Initiating transfer with reference: ${deterministicReference}`);
 
-        // Deduct from wallet and create transaction
-        await prisma.$transaction(async (tx) => {
-          await tx.wallet.update({
-            where: { id: wallet.id },
-            data: { balance: { decrement: pe.amount } },
+        // Reuse the row and reference on retries. A pending row means the wallet
+        // was already debited and must never be debited again.
+        const transaction = await prisma.$transaction(async (tx) => {
+          const existing = await tx.transaction.findUnique({
+            where: { payrollEmployeeId: pe.id },
           });
 
-          await tx.transaction.create({
+          if (existing?.status === 'SUCCESS') {
+            await tx.payrollEmployee.update({ where: { id: pe.id }, data: { status: 'SUCCESS' } });
+            return existing;
+          }
+          if (existing?.status === 'PENDING') return existing;
+
+          const debited = await tx.wallet.updateMany({
+            where: { id: wallet.id, balance: { gte: pe.amount } },
+            data: { balance: { decrement: pe.amount } },
+          });
+          if (debited.count !== 1) throw new Error(`Insufficient balance for employee ${employee.id}`);
+
+          if (existing) {
+            return tx.transaction.update({
+              where: { id: existing.id },
+              data: {
+                status: 'PENDING',
+                paystackReference: deterministicReference,
+                reconciliationStartedAt: null,
+                reconciliationCheckedAt: null,
+                reconciliationError: null,
+              },
+            });
+          }
+
+          return tx.transaction.create({
             data: {
               companyId,
               walletId: wallet.id,
@@ -191,10 +220,25 @@ export async function processPayroll(data: ProcessPayrollData) {
               amount: pe.amount,
               status: 'PENDING',
               description: `Payroll payment to ${employee.firstName} ${employee.lastName}`,
-              paystackReference: reference,
+              paystackReference: deterministicReference,
             },
           });
         });
+
+        // Preserve a legacy pending reference if one already exists; new rows
+        // always use the deterministic payroll-employee reference.
+        const reference = transaction.paystackReference || deterministicReference;
+
+        if (transaction.status === 'SUCCESS') {
+          successCount++;
+          continue;
+        }
+        if (transaction.paystackTransferId) {
+          // Paystack returned a transfer code previously; reconciliation owns
+          // this pending provider state and we must not submit it twice.
+          unknownCount++;
+          continue;
+        }
 
         // Initiate Paystack transfer
         console.log(`[ProcessPayroll] Sending Paystack transfer request...`);
@@ -206,10 +250,16 @@ export async function processPayroll(data: ProcessPayrollData) {
             reference,
           });
 
+          if (transferResponse?.status === false) {
+            const rejected = new Error(transferResponse.message || 'Paystack rejected transfer');
+            Object.assign(rejected, { response: { status: 400, data: transferResponse } });
+            throw rejected;
+          }
+
           const transferCode = transferResponse?.data?.transfer_code;
           if (transferCode) {
             await prisma.transaction.updateMany({
-              where: { paystackReference: reference, status: 'PENDING' },
+              where: { id: transaction.id, status: 'PENDING' },
               data: { paystackTransferId: transferCode },
             });
           }
@@ -217,7 +267,7 @@ export async function processPayroll(data: ProcessPayrollData) {
           if (process.env.USE_PAYSTACK_MOCK === 'true') {
             await prisma.$transaction(async (tx) => {
               await tx.transaction.updateMany({
-                where: { paystackReference: reference, status: 'PENDING' },
+                where: { id: transaction.id, status: 'PENDING' },
                 data: { status: 'SUCCESS', paystackTransferId: `TRF_mock_${Date.now()}` },
               });
               await tx.payrollEmployee.update({
@@ -233,28 +283,52 @@ export async function processPayroll(data: ProcessPayrollData) {
             });
           }
         } catch (transferError: unknown) {
-          // Transfer failed — reverse the wallet deduction so money isn't lost
           console.error(
-            `[ProcessPayroll] Transfer call failed for ${employee.id}, reversing wallet deduction:`,
+            `[ProcessPayroll] Transfer call failed for ${employee.id}:`,
             getErrorDetail(transferError)
           );
 
-          await prisma.$transaction(async (tx) => {
-            await tx.wallet.update({
-              where: { id: wallet.id },
-              data: { balance: { increment: pe.amount } },
+          if (classifyTransferError(transferError) === 'definitive') {
+            await prisma.$transaction(async (tx) => {
+              const transition = await tx.transaction.updateMany({
+                where: { id: transaction.id, status: 'PENDING' },
+                data: { status: 'FAILED', reconciliationCheckedAt: new Date() },
+              });
+              if (transition.count !== 1) return;
+              await tx.wallet.update({
+                where: { id: wallet.id },
+                data: { balance: { increment: pe.amount } },
+              });
+              await tx.transaction.create({
+                data: {
+                  companyId,
+                  walletId: wallet.id,
+                  employeeId: employee.id,
+                  type: 'REFUND',
+                  amount: pe.amount,
+                  status: 'SUCCESS',
+                  description: `Refund for rejected transfer: ${reference}`,
+                },
+              });
+              await tx.payrollEmployee.update({ where: { id: pe.id }, data: { status: 'FAILED' } });
             });
-            await tx.transaction.updateMany({
-              where: { paystackReference: reference },
-              data: { status: 'FAILED' },
-            });
-            await tx.payrollEmployee.update({
-              where: { id: pe.id },
-              data: { status: 'FAILED' },
-            });
-          });
+            throw transferError;
+          }
 
-          throw transferError;
+          // Timeouts, network failures, 5xx responses, and unknown responses
+          // remain pending for transfer reconciliation. Keep one deterministic
+          // transfer per row.
+          // TODO: Paystack bulk transfers remain optional and are intentionally not implemented.
+          await prisma.transaction.updateMany({
+            where: { id: transaction.id, status: 'PENDING' },
+            data: {
+              reconciliationStartedAt: null,
+              reconciliationCheckedAt: null,
+              reconciliationError: getErrorMessage(transferError),
+            },
+          });
+          unknownCount++;
+          continue;
         }
 
         console.log(`[ProcessPayroll] Transfer initiated successfully for ${employee.id}`);
@@ -291,9 +365,9 @@ export async function processPayroll(data: ProcessPayrollData) {
       where: { id: payrollId },
       data: {
         status: finalStatus,
-        processedDate: new Date(),
+        ...(finalStatus !== 'PROCESSING' && { processedDate: new Date() }),
         processingHeartbeatAt: null,
-        failureReason: failCount > 0 ? `${failCount} employee transfers failed` : null,
+        failureReason: failCount > 0 ? `${failCount} employee transfers failed` : unknownCount > 0 ? `${unknownCount} employee transfers need reconciliation` : null,
       },
     });
 
@@ -337,14 +411,22 @@ export async function processPayroll(data: ProcessPayrollData) {
   } catch (error) {
     console.error(`[ProcessPayroll] Payroll ${payrollId} failed:`, error);
     const errorMessage = getErrorMessage(error);
+    const unresolvedCount = await prisma.transaction.count({
+      where: {
+        type: 'PAYROLL_DEBIT',
+        status: 'PENDING',
+        payrollEmployee: { payrollId },
+      },
+    });
+    const unresolved = unresolvedCount > 0;
 
     await prisma.payroll.updateMany({
       where: { id: payrollId, status: 'PROCESSING' },
       data: {
-        status: 'FAILED',
-        processedDate: new Date(),
+        status: unresolved ? 'PROCESSING' : 'FAILED',
+        ...(unresolved ? {} : { processedDate: new Date() }),
         processingHeartbeatAt: null,
-        failureReason: errorMessage,
+        failureReason: unresolved ? `Transfer state requires reconciliation: ${errorMessage}` : errorMessage,
       },
     });
 
@@ -358,9 +440,9 @@ export async function processPayroll(data: ProcessPayrollData) {
 
     await notificationService.notifyCompanyAdmins({
       companyId,
-      type: 'PAYROLL_FAILED',
-      title: 'Payroll Failed',
-      message: `Payroll processing failed: ${errorMessage}`,
+      type: unresolved ? 'PAYROLL_SCHEDULED' : 'PAYROLL_FAILED',
+      title: unresolved ? 'Payroll Awaiting Reconciliation' : 'Payroll Failed',
+      message: unresolved ? `Payroll has transfers awaiting Paystack reconciliation: ${errorMessage}` : `Payroll processing failed: ${errorMessage}`,
     });
 
     throw error;

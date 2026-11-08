@@ -1,7 +1,7 @@
+import { prisma } from '../lib/prisma';
 import { Request, Response, NextFunction } from 'express';
 import {
   Prisma,
-  PrismaClient,
   TransactionStatus,
   TransactionType,
 } from '@prisma/client';
@@ -12,7 +12,6 @@ import config from '../config';
 import { auditService } from '../services/audit.service';
 import { notificationService } from '../services/notification.service';
 
-const prisma = new PrismaClient();
 
 // @desc    Get wallet balance
 // @route   GET /api/v1/wallet

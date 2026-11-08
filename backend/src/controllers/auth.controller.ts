@@ -1,5 +1,5 @@
+import { prisma } from '../lib/prisma';
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
@@ -7,7 +7,6 @@ import config from '../config';
 import { AppError } from '../middleware/errorHandler';
 import { getPermissions } from '../auth/permissions';
 
-const prisma = new PrismaClient();
 
 const registerSchema = z.object({
   email: z.string().email('Invalid email'),
