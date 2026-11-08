@@ -121,9 +121,15 @@ async function main() {
     },
   };
 
+  let approvalCode: string | undefined;
+  if (process.env.REQUIRE_APPROVAL_OTP === 'true') {
+    await axios.post(`${BASE_URL}/payrolls/${payrollId}/approval-code`, undefined, financeAuth);
+    approvalCode = process.env.APPROVAL_CODE;
+    assert(approvalCode, 'Set APPROVAL_CODE to the email code when REQUIRE_APPROVAL_OTP=true');
+  }
   const approval = await axios.put(
     `${BASE_URL}/payrolls/${payrollId}/approve`,
-    undefined,
+    approvalCode ? { code: approvalCode } : undefined,
     financeAuth
   );
   assert(

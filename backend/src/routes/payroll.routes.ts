@@ -7,6 +7,7 @@ import {
   updatePayrollDraft,
   submitPayroll,
   approvePayroll,
+  issueApprovalCode,
   cancelPayroll,
   retryPayroll,
   exportPayroll,
@@ -25,6 +26,7 @@ router.get('/:id', authorizePermission('payroll.read'), getPayroll);
 router.put('/:id', authorizePermission('payroll.update'), updatePayrollDraft);
 router.put('/:id/submit', authorizePermission('payroll.submit'), submitPayroll);
 router.put('/:id/approve', authorizePermission('payroll.approve'), approvePayroll);
+router.post('/:id/approval-code', authorizePermission('payroll.approve'), issueApprovalCode);
 router.put('/:id/cancel', authorizePermission('payroll.cancel'), cancelPayroll);
 router.put('/:id/retry', authorizePermission('payroll.retry'), retryPayroll);
 

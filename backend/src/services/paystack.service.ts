@@ -46,7 +46,10 @@ class PaystackService {
         status: true,
         message: 'Authorization URL created',
         data: {
-          authorization_url: 'https://checkout.paystack.com/mock-url',
+          // In mock mode send the operator straight back to the configured
+          // callback so the local verification flow can complete without a
+          // dead external checkout page.
+          authorization_url: params.callbackUrl || 'https://checkout.paystack.com/mock-url',
           access_code: 'mock-access-code',
           reference: params.reference || `ref_${Date.now()}`,
         }

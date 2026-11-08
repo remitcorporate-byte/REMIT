@@ -31,7 +31,9 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-node dist/server.js &
+SERVER_LOG="${SERVER_LOG:-/tmp/remit-local-supabase-server.log}"
+export SERVER_LOG
+node dist/server.js >"$SERVER_LOG" 2>&1 &
 server_pid=$!
 for _ in $(seq 1 30); do
   if curl -fsS "${BASE_URL}/health" >/dev/null 2>&1; then
@@ -40,6 +42,10 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 curl -fsS "${BASE_URL}/health" >/dev/null
+
+if [[ "${AUTH_E2E:-false}" == "true" ]]; then
+  pnpm exec ts-node scripts/test-auth-e2e.ts
+fi
 
 for script in \
   scripts/test-apis.ts \

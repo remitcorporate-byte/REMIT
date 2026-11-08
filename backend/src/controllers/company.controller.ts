@@ -94,7 +94,7 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
 
     const companyId = req.user.companyId;
 
-    const [employeeCount, wallet, upcomingPayrolls, recentTransactions] =
+    const [employeeCount, wallet, payrollCount, pendingApprovalCount, upcomingPayrolls, pendingApprovalPayrolls, recentTransactions] =
       await Promise.all([
         prisma.employee.count({
           where: { companyId, isActive: true },
@@ -103,14 +103,21 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
           where: { companyId },
           select: { balance: true, reservedBalance: true, currency: true },
         }),
+        prisma.payroll.count({ where: { companyId } }),
+        prisma.payroll.count({ where: { companyId, status: 'PENDING_APPROVAL' } }),
         prisma.payroll.findMany({
           where: {
             companyId,
-            status: 'SCHEDULED',
+            status: { in: ['SCHEDULED', 'PENDING_APPROVAL'] },
             scheduledDate: { gte: new Date() },
           },
           orderBy: { scheduledDate: 'asc' },
           take: 5,
+        }),
+        prisma.payroll.findMany({
+          where: { companyId, status: 'PENDING_APPROVAL', scheduledDate: { gte: new Date() } },
+          orderBy: { scheduledDate: 'asc' },
+          take: 3,
         }),
         prisma.transaction.findMany({
           where: { companyId },
@@ -128,11 +135,14 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
       success: true,
       data: {
         employeeCount,
+        payrollCount,
+        pendingApprovalCount,
         walletBalance: wallet?.balance || 0,
         reservedBalance: wallet?.reservedBalance || 0,
         availableBalance: wallet ? wallet.balance - wallet.reservedBalance : 0,
         currency: wallet?.currency || 'NGN',
         upcomingPayrolls,
+        pendingApprovalPayrolls,
         recentTransactions,
       },
     });

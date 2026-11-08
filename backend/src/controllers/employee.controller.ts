@@ -376,3 +376,14 @@ export const deleteEmployee = async (req: Request, res: Response, next: NextFunc
     next(error);
   }
 };
+
+export const reactivateEmployee = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user?.companyId) throw new AppError('No company associated with this user', 400);
+    const employee = await prisma.employee.findFirst({ where: { id: req.params.id as string, companyId: req.user.companyId } });
+    if (!employee) throw new AppError('Employee not found', 404);
+    const updated = await prisma.employee.update({ where: { id: employee.id }, data: { isActive: true } });
+    await auditService.record({ companyId: req.user.companyId, userId: req.user.id, action: 'EMPLOYEE_REACTIVATED', entityType: 'Employee', entityId: employee.id, metadata: { email: employee.email } });
+    res.json({ success: true, data: withDecryptedAccountNumber(updated) });
+  } catch (error) { next(error); }
+};

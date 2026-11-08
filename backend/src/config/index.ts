@@ -32,6 +32,10 @@ if (!isProduction) {
   }
 }
 
+if (isProduction && !process.env.RESEND_API_KEY) {
+  throw new Error('RESEND_API_KEY is required in production so email codes are not logged');
+}
+
 const config = {
   env,
   port: parseInt(process.env.PORT || '5000', 10),
@@ -47,7 +51,22 @@ const config = {
 
   jwt: {
     secret: process.env.JWT_SECRET || 'test-only-jwt-secret',
-    expire: process.env.JWT_EXPIRE || '30d',
+    expire: process.env.JWT_EXPIRE || '15m',
+    accessTtl: process.env.JWT_ACCESS_TTL || '15m',
+  },
+
+  auth: {
+    refreshTokenTtlDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS || 30),
+    cookieCrossSite: process.env.COOKIE_CROSS_SITE === 'true',
+    appUrl: process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:5173',
+    requireApprovalOtp: process.env.REQUIRE_APPROVAL_OTP
+      ? process.env.REQUIRE_APPROVAL_OTP === 'true'
+      : isProduction,
+  },
+
+  email: {
+    resendApiKey: process.env.RESEND_API_KEY || '',
+    from: process.env.EMAIL_FROM || 'REMIT <no-reply@remit.local>',
   },
 
   paystack: {

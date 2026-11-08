@@ -22,6 +22,7 @@ app.use(cors({
     : config.env === 'development'
       ? true
       : false,
+  credentials: true,
 }));
 
 // Preserve the raw JSON payload for Paystack HMAC verification.

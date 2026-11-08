@@ -91,8 +91,8 @@ export const initializeDeposit = async (req: Request, res: Response, next: NextF
       email: req.user.email,
       amount,
       reference,
-      callbackUrl: config.frontendUrl
-        ? `${config.frontendUrl}/?view=wallet&depositReference=${reference}`
+      callbackUrl: config.frontendUrls[0]
+        ? `${config.frontendUrls[0]}/?view=wallet&depositReference=${reference}`
         : undefined,
       metadata: {
         companyId: req.user.companyId,

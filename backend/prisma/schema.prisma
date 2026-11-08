@@ -21,6 +21,11 @@ enum AuthProvider {
   GOOGLE
 }
 
+enum OneTimeCodePurpose {
+  PASSWORD_RESET
+  PAYROLL_APPROVAL
+}
+
 enum PaymentFrequency {
   WEEKLY
   BIWEEKLY
@@ -110,6 +115,7 @@ model User {
   isActive     Boolean      @default(true)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+  passwordChangedAt DateTime?
 
   company          Company?         @relation(fields: [companyId], references: [id])
   ownedCompany     Company?         @relation("CompanyOwner")
@@ -119,9 +125,49 @@ model User {
   auditLogs        AuditLog[]
   supportTickets   SupportTicket[]  @relation("SupportTicketCreatedBy")
   supportMessages  SupportMessage[] @relation("SupportMessageAuthor")
+  authSessions     AuthSession[]
+  oneTimeCodes     OneTimeCode[]
 
   @@index([email])
   @@index([companyId])
+}
+
+model AuthSession {
+  id               String    @id @default(uuid())
+  userId           String
+  refreshTokenHash String    @unique
+  familyId         String
+  userAgent        String?
+  ipAddress        String?
+  deviceName       String?
+  createdAt        DateTime  @default(now())
+  lastUsedAt       DateTime  @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  revokedReason    String?
+  replacedById     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+model OneTimeCode {
+  id         String            @id @default(uuid())
+  userId     String
+  purpose    OneTimeCodePurpose
+  codeHash   String
+  attempts   Int               @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime          @default(now())
+  metadata   Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
 }
 
 model Company {

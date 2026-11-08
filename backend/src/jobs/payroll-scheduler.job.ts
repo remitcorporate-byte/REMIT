@@ -115,11 +115,20 @@ export async function processDuePayrolls() {
   return duePayrolls.length;
 }
 
+export async function cleanupAuthArtifacts() {
+  const now = new Date();
+  const sessionCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const sessions = await prisma.authSession.deleteMany({ where: { expiresAt: { lt: sessionCutoff } } });
+  const codes = await prisma.oneTimeCode.deleteMany({ where: { OR: [{ expiresAt: { lt: now } }, { consumedAt: { lt: now } }] } });
+  return { sessions: sessions.count, codes: codes.count };
+}
+
 export async function runPayrollSchedulerCycle() {
   const reconciliation = await reconcilePendingTransfers();
   const recovery = await recoverStalePayrolls();
   const queued = await processDuePayrolls();
-  return { ...recovery, queued, reconciliation };
+  const cleanup = await cleanupAuthArtifacts();
+  return { ...recovery, queued, reconciliation, cleanup };
 }
 
 export function startPayrollScheduler() {

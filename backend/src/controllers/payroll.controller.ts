@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { prisma } from '../lib/prisma';
 import { Request, Response, NextFunction } from 'express';
 import { PayrollStatus, Prisma, PrismaClient } from '@prisma/client';
@@ -6,6 +7,10 @@ import { AppError } from '../middleware/errorHandler';
 import { getPaginationParams, paginatedResponse } from '../utils/formatters';
 import { payrollQueue } from '../queues/payroll.queue';
 import { auditService } from '../services/audit.service';
+import config from '../config';
+import { hashToken } from '../auth/tokens';
+import { sendEmail } from '../services/email.service';
+import { verifyHashedCode } from '../auth/otp';
 
 
 const payrollInputSchema = z.object({
@@ -293,6 +298,26 @@ export const approvePayroll = async (req: Request, res: Response, next: NextFunc
       }
     }
 
+    if (config.auth.requireApprovalOtp) {
+      const code = z.string().regex(/^\d{6}$/).safeParse(req.body?.code);
+      if (!code.success) throw new AppError('Approval code is required', 400);
+      const otp = await prisma.oneTimeCode.findFirst({ where: { userId: req.user.id, purpose: 'PAYROLL_APPROVAL', consumedAt: null, expiresAt: { gt: new Date() }, metadata: { path: ['payrollId'], equals: payroll.id }, attempts: { lt: 5 } }, orderBy: { createdAt: 'desc' } });
+      if (!otp) {
+        await auditService.record({ companyId: req.user.companyId, userId: req.user.id, action: 'APPROVAL_CODE_FAILED', entityType: 'Payroll', entityId: payroll.id, metadata: { reason: 'expired_or_attempt_limit' } });
+        throw new AppError('Approval code expired or unavailable', 400);
+      }
+      const checked = verifyHashedCode({ provided: code.data, codeHash: otp.codeHash, expiresAt: otp.expiresAt, attempts: otp.attempts });
+      if (!checked.ok) {
+        await prisma.oneTimeCode.updateMany({ where: { id: otp.id, attempts: { lt: 5 }, consumedAt: null }, data: { attempts: { increment: 1 } } });
+        await auditService.record({ companyId: req.user.companyId, userId: req.user.id, action: 'APPROVAL_CODE_FAILED', entityType: 'Payroll', entityId: payroll.id });
+        throw new AppError('Invalid approval code', 400);
+      }
+      const consumed = await prisma.oneTimeCode.updateMany({ where: { id: otp.id, consumedAt: null, attempts: { lt: 5 } }, data: { consumedAt: new Date() } });
+      // Two concurrent approvals with the same code: only one may consume it.
+      if (consumed.count !== 1) throw new AppError('Approval code already used', 400);
+      await auditService.record({ companyId: req.user.companyId, userId: req.user.id, action: 'APPROVAL_CODE_USED', entityType: 'Payroll', entityId: payroll.id });
+    }
+
     await reservePayrollFunds(payroll);
 
     const updated = await prisma.payroll.update({
@@ -322,6 +347,25 @@ export const approvePayroll = async (req: Request, res: Response, next: NextFunc
   } catch (error) {
     next(error);
   }
+};
+
+export const issueApprovalCode = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user?.companyId) throw new AppError('No company associated with this user', 400);
+    const payroll = await prisma.payroll.findFirst({ where: { id: req.params.id as string, companyId: req.user.companyId } });
+    if (!payroll) throw new AppError('Payroll not found', 404);
+    if (payroll.status !== 'PENDING_APPROVAL') throw new AppError(`Cannot approve payroll with status: ${payroll.status}`, 400);
+    if (!config.auth.requireApprovalOtp) return res.json({ success: true, data: { required: false } });
+    // Each new code resets the 5-attempt budget, so cap issuance to keep guessing bounded.
+    const recentCodes = await prisma.oneTimeCode.count({ where: { userId: req.user.id, purpose: 'PAYROLL_APPROVAL', createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) } } });
+    if (recentCodes >= 5) throw new AppError('Too many approval codes requested. Try again in an hour.', 429);
+    const code = crypto.randomInt(100000, 1000000).toString();
+    await prisma.oneTimeCode.updateMany({ where: { userId: req.user.id, purpose: 'PAYROLL_APPROVAL', consumedAt: null }, data: { consumedAt: new Date() } });
+    await prisma.oneTimeCode.create({ data: { userId: req.user.id, purpose: 'PAYROLL_APPROVAL', codeHash: hashToken(code), expiresAt: new Date(Date.now() + 10 * 60 * 1000), metadata: { payrollId: payroll.id } } });
+    await sendEmail({ to: req.user.email, subject: 'REMIT payroll approval code', text: `Your payroll approval code is ${code}. It expires in 10 minutes.` });
+    await auditService.record({ companyId: req.user.companyId, userId: req.user.id, action: 'APPROVAL_CODE_ISSUED', entityType: 'Payroll', entityId: payroll.id });
+    res.json({ success: true, data: { required: true, expiresIn: 600 } });
+  } catch (error) { next(error); }
 };
 
 export const getPayrolls = async (req: Request, res: Response, next: NextFunction) => {

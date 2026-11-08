@@ -7,6 +7,7 @@ import {
   deleteEmployee,
   listBanks,
   verifyBank,
+  reactivateEmployee,
 } from '../controllers/employee.controller';
 import { protect, authorizePermission } from '../middleware/auth';
 
@@ -23,5 +24,6 @@ router.route('/:id')
   .get(authorizePermission('employee.read'), getEmployee)
   .put(authorizePermission('employee.manage'), updateEmployee)
   .delete(authorizePermission('employee.manage'), deleteEmployee);
+router.put('/:id/reactivate', authorizePermission('employee.manage'), reactivateEmployee);
 
 export default router;
