@@ -9,6 +9,7 @@ import { PageState } from '../components/ui/PageState'
 import { useLoad } from '../hooks/useLoad'
 import type { Employee } from '../types'
 import { Can } from '../auth/Can'
+import { labelFor } from '../labels'
 
 export function EmployeesPage() {
   const [search, setSearch] = useState('')
@@ -132,6 +133,10 @@ function EmployeeForm({ employee, onClose, onDone }: { employee?: Employee | nul
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (!verifiedName) {
+      setError('Verify the bank account before saving this employee.')
+      return
+    }
     setSaving(true)
     setError('')
     try {
@@ -192,15 +197,15 @@ function EmployeeForm({ employee, onClose, onDone }: { employee?: Employee | nul
           <button type="button" className="btn-secondary" onClick={verifyAccount} disabled={form.accountNumber.length < 10}>Verify account</button>
           {verifiedName && <small className="font-semibold text-mint-700">Verified: {verifiedName}</small>}
         </div>
-        <Field label="Monthly salary in naira" type="number" value={form.salary} onChange={(salary) => setForm({ ...form, salary })} required />
+        <Field label="Monthly salary in naira" type="number" min="0" step="100" inputMode="decimal" value={form.salary} onChange={(salary) => setForm({ ...form, salary })} required />
         <Field label="Department" value={form.department} onChange={(department) => setForm({ ...form, department })} />
         <Field label="Position" value={form.position} onChange={(position) => setForm({ ...form, position })} />
         <label className="field">
           <span className="field-label">Frequency</span>
           <select className="field-control" value={form.paymentFrequency} onChange={(event) => setForm({ ...form, paymentFrequency: event.target.value as Employee['paymentFrequency'] })}>
-            <option value="MONTHLY">Monthly</option>
-            <option value="BIWEEKLY">Biweekly</option>
-            <option value="WEEKLY">Weekly</option>
+            <option value="MONTHLY">{labelFor('MONTHLY')}</option>
+            <option value="BIWEEKLY">{labelFor('BIWEEKLY')}</option>
+            <option value="WEEKLY">{labelFor('WEEKLY')}</option>
           </select>
         </label>
         <Field label="Next payment date" type="datetime-local" value={form.nextPaymentDate} onChange={(nextPaymentDate) => setForm({ ...form, nextPaymentDate })} />
@@ -208,7 +213,7 @@ function EmployeeForm({ employee, onClose, onDone }: { employee?: Employee | nul
       {error && <div className="mt-4"><Notice tone="danger" title="Employee error">{error}</Notice></div>}
       <div className="mt-5 flex justify-end gap-3">
         <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-        <button className="btn-primary" disabled={saving}>{saving ? 'Saving...' : employee ? 'Save changes' : 'Save employee'}</button>
+        <button className="btn-primary" disabled={saving || !verifiedName}>{saving ? 'Saving...' : employee ? 'Save changes' : 'Save employee'}</button>
       </div>
     </form>
   )

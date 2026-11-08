@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext'
 import type { NavigationItem, View } from '../navigation/appNavigation'
 import type { User } from '../types'
 import './operations.css'
+import { labelFor } from '../labels'
 
 export function AppShell({ navigation, view, onViewChange, onLogout, children }: {
   navigation: NavigationItem[]
@@ -41,7 +42,7 @@ export function AppShell({ navigation, view, onViewChange, onLogout, children }:
 
         <div className="operations-user">
           <span>{initials(user)}</span>
-          <div><strong>{user.firstName} {user.lastName}</strong><small>{user.companyName || user.company?.name || 'REMIT company'}</small><em>{user.role}</em></div>
+          <div><strong>{user.firstName} {user.lastName}</strong><small>{user.companyName || user.company?.name || 'REMIT company'}</small><em>{labelFor(user.role)}</em></div>
           <button onClick={onLogout} aria-label="Log out"><LogOut size={18} /></button>
         </div>
       </aside>

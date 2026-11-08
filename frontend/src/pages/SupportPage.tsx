@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import { ArrowLeft, LifeBuoy, MessageSquare, Plus, Send, X } from 'lucide-react'
 import { api, formatDate, formatNaira } from '../api'
 import { useAuth } from '../auth/AuthContext'
+import { labelFor } from '../labels'
 import { EmptyState } from '../components/ui/EmptyState'
 import { LoadingState } from '../components/ui/LoadingState'
 import { Notice } from '../components/ui/Notice'
@@ -172,7 +173,7 @@ export function SupportPage() {
                   {(workspace.data?.payrolls || []).map((payroll) => <option key={payroll.id} value={`payroll:${payroll.id}`}>Payroll · {formatDate(payroll.scheduledDate)} · {formatNaira(payroll.totalAmount)}</option>)}
                 </optgroup>
                 <optgroup label="Transactions">
-                  {(workspace.data?.transactions || []).map((transaction) => <option key={transaction.id} value={`transaction:${transaction.id}`}>{transaction.type.replaceAll('_', ' ')} · {formatNaira(transaction.amount)} · {formatDate(transaction.createdAt)}</option>)}
+                  {(workspace.data?.transactions || []).map((transaction) => <option key={transaction.id} value={`transaction:${transaction.id}`}>{labelFor(transaction.type)} · {formatNaira(transaction.amount)} · {formatDate(transaction.createdAt)}</option>)}
                 </optgroup>
               </select>
             </label>
@@ -243,6 +244,6 @@ function categoryLabel(value: SupportTicketCategory) {
 
 function linkedRecord(ticket: SupportTicket) {
   if (ticket.payroll) return <div className="support-linked-record"><span>Related payroll</span><strong>{formatDate(ticket.payroll.scheduledDate)} · {formatNaira(ticket.payroll.totalAmount)}</strong><StatusPill value={ticket.payroll.status} /></div>
-  if (ticket.transaction) return <div className="support-linked-record"><span>Related transaction</span><strong>{ticket.transaction.type.replaceAll('_', ' ')} · {formatNaira(ticket.transaction.amount)}</strong><StatusPill value={ticket.transaction.status} /></div>
+  if (ticket.transaction) return <div className="support-linked-record"><span>Related transaction</span><strong>{labelFor(ticket.transaction.type)} · {formatNaira(ticket.transaction.amount)}</strong><StatusPill value={ticket.transaction.status} /></div>
   return null
 }

@@ -5,6 +5,7 @@ import { useAuth } from './auth/AuthContext'
 import { appNavigation, type View } from './navigation/appNavigation'
 import { LandingPage } from './pages/LandingPage'
 import { EmployeeWebBoundary } from './pages/EmployeeWebBoundary'
+import { PasswordRecoveryPage } from './pages/PasswordRecoveryPage'
 
 type PublicView = 'landing' | 'auth'
 type AuthMode = 'login' | 'register'
@@ -43,6 +44,8 @@ export default function App() {
   }, [navigation, view])
 
   if (booting) return <LoadingState label="Checking session..." fullScreen />
+
+  if (window.location.pathname === '/reset-password' || new URLSearchParams(window.location.search).has('forgot')) return <PasswordRecoveryPage />
 
   if (!user) {
     if (publicView === 'landing') {

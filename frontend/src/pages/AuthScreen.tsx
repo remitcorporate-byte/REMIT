@@ -97,6 +97,7 @@ export function AuthScreen({ onAuthed, initialMode = 'login', onBack }: {
             {mode === 'login' ? 'New to REMIT?' : 'Already have an account?'}{' '}
             <button onClick={() => changeMode(mode === 'login' ? 'register' : 'login')}>{mode === 'login' ? 'Create an account' : 'Sign in'}</button>
           </p>
+          {mode === 'login' && <p className="auth-switch"><a href="/?forgot=1">Forgot password?</a></p>}
           <span className="auth-trust"><LockKeyhole size={17} /> Protected by role-based access</span>
         </div>
       </section>

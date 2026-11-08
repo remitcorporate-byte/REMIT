@@ -17,6 +17,7 @@ export function PayrollPage() {
   const [date, setDate] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 16))
   const [note, setNote] = useState('')
   const [message, setMessage] = useState('')
+  const [actionMessage, setActionMessage] = useState('')
   const [detailId, setDetailId] = useState<string | null>(null)
   const payrolls = useLoad(() => api.payrolls(status), [status])
   const employees = useLoad(() => api.employees(''))
@@ -25,11 +26,17 @@ export function PayrollPage() {
     () => (employees.data || []).filter((employee) => selected.includes(employee.id)).reduce((sum, employee) => sum + employee.salary, 0),
     [employees.data, selected],
   )
+  const minimumDate = new Date().toISOString().slice(0, 16)
 
   const createDraft = async () => {
     setMessage('')
+    const scheduled = new Date(date)
+    if (!date || Number.isNaN(scheduled.getTime()) || scheduled.getTime() < Date.now()) {
+      setMessage('Choose a valid date and time in the future.')
+      return
+    }
     try {
-      await api.createPayrollDraft({ scheduledDate: new Date(date).toISOString(), employeeIds: selected, note })
+      await api.createPayrollDraft({ scheduledDate: scheduled.toISOString(), employeeIds: selected, note })
       setSelected([])
       setNote('')
       setMessage('Payroll draft created. Submit it for approval when ready.')
@@ -37,6 +44,27 @@ export function PayrollPage() {
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Could not schedule payroll')
     }
+  }
+
+  const runAction = async (action: () => Promise<unknown>, success: string) => {
+    setActionMessage('')
+    try {
+      await action()
+      setActionMessage(success)
+      payrolls.reload()
+    } catch (err) {
+      setActionMessage(err instanceof Error ? err.message : 'Payroll action failed')
+    }
+  }
+
+  const approve = async (id: string) => {
+    if (!window.confirm('Approve this payroll and release the payment run?')) return
+    await runAction(() => approveWithCode(id), 'Payroll approved.')
+  }
+
+  const cancel = async (id: string) => {
+    if (!window.confirm('Cancel this payroll run? This cannot be undone.')) return
+    await runAction(() => api.cancelPayroll(id), 'Payroll cancelled.')
   }
 
   return (
@@ -69,7 +97,7 @@ export function PayrollPage() {
               ))}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Scheduled date" type="datetime-local" value={date} onChange={setDate} />
+              <Field label="Scheduled date" type="datetime-local" min={minimumDate} value={date} onChange={setDate} required />
               <Field label="Note" value={note} onChange={setNote} />
             </div>
             <div className="my-4 flex justify-between rounded-lg bg-remit-50 p-3">
@@ -125,13 +153,13 @@ export function PayrollPage() {
                   <Can permission="payroll.approve">
                     {payroll.status === 'PENDING_APPROVAL' ? <button className="btn-secondary" onClick={(event) => {
                       event.stopPropagation()
-                      api.approvePayroll(payroll.id).then(payrolls.reload)
+                      void approve(payroll.id)
                     }}>Approve</button> : null}
                   </Can>
                   <Can permission="payroll.cancel">
                     {['DRAFT', 'PENDING_APPROVAL', 'SCHEDULED'].includes(payroll.status) ? <button className="btn-secondary" onClick={(event) => {
                       event.stopPropagation()
-                      api.cancelPayroll(payroll.id).then(payrolls.reload)
+                      void cancel(payroll.id)
                     }}>Cancel</button> : null}
                   </Can>
                   <Can permission="payroll.retry">
@@ -147,6 +175,7 @@ export function PayrollPage() {
         ))}
         <EmptyState show={!payrolls.data?.length} text="No payroll runs yet." />
       </Card>
+      {actionMessage && <Notice title="Payroll status" tone={actionMessage.includes('failed') || actionMessage.includes('Failed') ? 'danger' : 'info'}>{actionMessage}</Notice>}
       {detailId && <PayrollDetail id={detailId} onClose={() => setDetailId(null)} onChanged={payrolls.reload} />}
     </PageState>
   )
@@ -196,10 +225,16 @@ function PayrollDetail({ id, onClose, onChanged }: { id: string; onClose: () => 
                   {payroll.data.status === 'DRAFT' ? <button className="btn-secondary" onClick={() => api.submitPayroll(id).then(refreshAll)}>Submit for approval</button> : null}
                 </Can>
                 <Can permission="payroll.approve">
-                  {payroll.data.status === 'PENDING_APPROVAL' ? <button className="btn-primary" onClick={() => api.approvePayroll(id).then(refreshAll)}>Approve payroll</button> : null}
+                  {payroll.data.status === 'PENDING_APPROVAL' ? <button className="btn-primary" onClick={async () => {
+                    if (!window.confirm('Approve this payroll and release the payment run?')) return
+                    await approveWithCode(id).then(refreshAll)
+                  }}>Approve payroll</button> : null}
                 </Can>
                 <Can permission="payroll.cancel">
-                  {['DRAFT', 'PENDING_APPROVAL', 'SCHEDULED'].includes(payroll.data.status) ? <button className="btn-secondary" onClick={() => api.cancelPayroll(id).then(refreshAll)}>Cancel payroll</button> : null}
+                  {['DRAFT', 'PENDING_APPROVAL', 'SCHEDULED'].includes(payroll.data.status) ? <button className="btn-secondary" onClick={async () => {
+                    if (!window.confirm('Cancel this payroll run? This cannot be undone.')) return
+                    await api.cancelPayroll(id).then(refreshAll)
+                  }}>Cancel payroll</button> : null}
                 </Can>
                 <Can permission="payroll.retry">
                   {payroll.data.status === 'FAILED' ? <button className="btn-primary" onClick={() => {
@@ -249,6 +284,16 @@ function PayrollDetail({ id, onClose, onChanged }: { id: string; onClose: () => 
       </div>
     </div>
   )
+}
+
+async function approveWithCode(id: string) {
+  const challenge = await api.approvalCode(id)
+  if (challenge.required) {
+    const code = window.prompt('Enter the 6-digit approval code sent to your email')
+    if (!code) return
+    return api.approvePayroll(id, code)
+  }
+  return api.approvePayroll(id)
 }
 
 function printPayslip(payroll: Payroll, rowId: string) {

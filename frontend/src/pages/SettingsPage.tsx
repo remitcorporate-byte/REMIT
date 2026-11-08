@@ -8,17 +8,21 @@ import { useLoad } from '../hooks/useLoad'
 import type { Company, TeamMember, TeamRole } from '../types'
 import { Can } from '../auth/Can'
 import { useAuth } from '../auth/AuthContext'
+import { deviceLabel, labelFor } from '../labels'
 
 const assignableRoles: Array<Extract<TeamRole, 'ADMIN' | 'FINANCE' | 'VIEWER'>> = ['ADMIN', 'FINANCE', 'VIEWER']
 
 export function SettingsPage() {
-  const { can } = useAuth()
+  const { can, logoutAll } = useAuth()
   const canManageCompany = can('company.manage')
   const canViewAudit = can('audit.read')
   const company = useLoad(api.company)
   const systemStatus = useLoad(api.systemStatus)
   const auditLog = useLoad(() => (canViewAudit ? api.auditLog() : Promise.resolve([])), [canViewAudit])
   const team = useLoad(api.team)
+  const sessions = useLoad(api.sessions)
+  const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '' })
+  const [passwordMessage, setPasswordMessage] = useState('')
   const [form, setForm] = useState<Partial<Company>>({})
   const [message, setMessage] = useState('')
   const [teamMessage, setTeamMessage] = useState('')
@@ -87,6 +91,10 @@ export function SettingsPage() {
     }
   }
 
+  const changePassword = async () => {
+    try { await api.changePassword(passwords.currentPassword, passwords.newPassword); setPasswords({ currentPassword: '', newPassword: '' }); setPasswordMessage('Password changed.') } catch (err) { setPasswordMessage(err instanceof Error ? err.message : 'Could not change password') }
+  }
+
   return (
     <PageState loading={company.loading} error={company.error} onRetry={company.reload}>
       <Card title="Company profile" subtitle="Updates the /company backend resource">
@@ -116,7 +124,7 @@ export function SettingsPage() {
                   value={invite.role}
                   onChange={(event) => setInvite({ ...invite, role: event.target.value as typeof invite.role })}
                 >
-                  {assignableRoles.map((role) => <option key={role} value={role}>{role}</option>)}
+                  {assignableRoles.map((role) => <option key={role} value={role}>{labelFor(role)}</option>)}
                 </select>
               </label>
               <Field label="Password optional" type="password" value={invite.password} onChange={(password) => setInvite({ ...invite, password })} />
@@ -150,9 +158,9 @@ export function SettingsPage() {
                             value={member.role}
                             onChange={(event) => updateRole(member, event.target.value as Extract<TeamRole, 'ADMIN' | 'FINANCE' | 'VIEWER'>)}
                           >
-                            {assignableRoles.map((role) => <option key={role} value={role}>{role}</option>)}
+                            {assignableRoles.map((role) => <option key={role} value={role}>{labelFor(role)}</option>)}
                           </select>
-                        ) : member.role}
+                        ) : labelFor(member.role)}
                       </Can>
                     </td>
                     <td className="px-3 py-3">{member.isActive ? 'Active' : 'Inactive'}</td>
@@ -188,6 +196,21 @@ export function SettingsPage() {
             />
           </div>
         </PageState>
+      </Card>
+
+      <Card title="Password and sessions" subtitle="Protect your account across devices">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Current password" type="password" value={passwords.currentPassword} onChange={(currentPassword) => setPasswords({ ...passwords, currentPassword })} />
+          <Field label="New password" type="password" minLength={8} value={passwords.newPassword} onChange={(newPassword) => setPasswords({ ...passwords, newPassword })} />
+        </div>
+        <button className="btn-primary mt-4" disabled={!passwords.currentPassword || passwords.newPassword.length < 8} onClick={changePassword}>Change password</button>
+        {passwordMessage && <Notice title="Password status">{passwordMessage}</Notice>}
+        <div className="mt-6 grid gap-2">
+          {(sessions.data || []).map((session) => <div key={session.id} className="flex items-center justify-between rounded-lg border border-slate-200 p-3 text-sm"><span>{deviceLabel(session.userAgent, session.deviceName)} {session.current ? '· This device' : ''}<small className="ml-2 text-slate-500">Last used {new Date(session.lastUsedAt).toLocaleString()}</small></span>{!session.current && <button className="btn-secondary" onClick={() => api.revokeSession(session.id).then(sessions.reload)}>Revoke</button>}</div>)}
+        </div>
+        <button className="btn-secondary mt-4" onClick={() => {
+          if (window.confirm('Sign out of every active REMIT session?')) void logoutAll()
+        }}>Sign out everywhere</button>
       </Card>
 
       <Can permission="audit.read">

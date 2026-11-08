@@ -34,8 +34,14 @@ export function WalletPage() {
 
   const deposit = async () => {
     setMessage('')
+    const amountInNaira = Number(amount.replaceAll(',', ''))
+    if (!Number.isFinite(amountInNaira) || amountInNaira < 100) {
+      setMessage('Enter a valid deposit amount of at least ₦100.')
+      return
+    }
+    if (!window.confirm(`Continue to fund the wallet with ${formatNaira(Math.round(amountInNaira * 100))}?`)) return
     try {
-      const result = await api.deposit(Math.round(Number(amount) * 100))
+      const result = await api.deposit(Math.round(amountInNaira * 100))
       setMessage(`Deposit initialized. Reference: ${result.reference}`)
       if (result.authorizationUrl) window.open(result.authorizationUrl, '_blank', 'noopener,noreferrer')
       wallet.reload()
@@ -70,7 +76,7 @@ export function WalletPage() {
       <Can permission="wallet.fund">
         <Card title="Fund wallet" subtitle="Initializes a Paystack checkout session through the API">
           <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
-            <Field label="Amount in naira" type="number" value={amount} onChange={setAmount} />
+            <Field label="Amount in naira" type="number" min="100" step="100" inputMode="decimal" value={amount} onChange={setAmount} required />
             <button className="btn-primary" onClick={deposit}>Initialize deposit</button>
           </div>
           {message && <div className="mt-4"><Notice title="Wallet status">{message}</Notice></div>}

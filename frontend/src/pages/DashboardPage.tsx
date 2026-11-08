@@ -8,6 +8,7 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { PageState } from '../components/ui/PageState'
 import { useLoad } from '../hooks/useLoad'
+import { useAuth } from '../auth/AuthContext'
 
 const fallbackTrends = [
   { month: 'Jan', deposits: 780000000, payroll: 520000000 },
@@ -19,6 +20,7 @@ const fallbackTrends = [
 ]
 
 export function DashboardPage() {
+  const { can } = useAuth()
   const dashboard = useLoad(api.dashboard)
   const stats = useLoad(api.stats)
   const employees = useLoad(() => api.employees(''))
@@ -29,7 +31,7 @@ export function DashboardPage() {
     { label: 'Company profile created', done: Boolean(dashboard.data) },
     { label: 'Wallet funded', done: (dashboard.data?.walletBalance || 0) > 0 },
     { label: 'Employee added', done: Boolean(employees.data?.length) },
-    { label: 'Payroll draft created', done: Boolean(payrolls.data?.some((payroll) => ['DRAFT', 'PENDING_APPROVAL', 'SCHEDULED', 'PROCESSING', 'COMPLETED'].includes(payroll.status))) },
+    { label: 'Payroll draft created', done: Boolean(dashboard.data?.payrollCount) },
     { label: 'Payroll approved or processed', done: Boolean(payrolls.data?.some((payroll) => ['SCHEDULED', 'PROCESSING', 'COMPLETED'].includes(payroll.status))) },
   ]
 
@@ -39,8 +41,12 @@ export function DashboardPage() {
         <MetricCard title="Active employees" value={dashboard.data?.employeeCount || 0} icon={Users} />
         <MetricCard title="Available balance" value={formatNaira(dashboard.data?.availableBalance || 0)} icon={Wallet} />
         <MetricCard title="Payroll paid" value={formatNaira(paid)} icon={Banknote} />
-        <MetricCard title="Scheduled runs" value={dashboard.data?.upcomingPayrolls.length || 0} icon={CalendarClock} />
+        <MetricCard title="Upcoming runs" value={dashboard.data?.upcomingPayrolls.length || 0} icon={CalendarClock} />
       </div>
+
+      {can('payroll.approve') && dashboard.data?.pendingApprovalPayrolls?.[0] ? <Card title="Needs your approval" subtitle="Review and approve this payroll run">
+        <PayrollRow payroll={dashboard.data.pendingApprovalPayrolls[0]} />
+      </Card> : null}
 
       <div className="dashboard-primary-grid">
         <Card title="Cash movement" subtitle="Deposits versus payroll debit trends">
@@ -49,7 +55,7 @@ export function DashboardPage() {
               <AreaChart data={trends} margin={{ top: 8, right: 4, bottom: 0, left: -12 }}>
                 <CartesianGrid stroke="#e6dfda" strokeDasharray="3 4" vertical={false} />
                 <XAxis dataKey="month" interval="preserveStartEnd" minTickGap={16} tick={{ fill: '#766d73', fontSize: 10 }} axisLine={{ stroke: '#d8d0cc' }} tickLine={false} />
-                <YAxis width={48} tickFormatter={(value) => `${Number(value) / 1000000}m`} tick={{ fill: '#766d73', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis width={56} tickFormatter={(value) => `₦${Number(value) / 1000000}m`} tick={{ fill: '#766d73', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <Tooltip formatter={(value) => formatNaira(Number(value))} />
                 <Area type="monotone" dataKey="deposits" stroke="#2b132b" fill="#2b132b" fillOpacity={0.04} strokeWidth={2.2} />
                 <Area type="monotone" dataKey="payroll" stroke="#e85d2a" fill="#e85d2a" fillOpacity={0.05} strokeWidth={2.2} />
@@ -57,7 +63,7 @@ export function DashboardPage() {
             </ResponsiveContainer>
           </div>
         </Card>
-        <Card title="Upcoming payrolls" subtitle="Runs waiting on the scheduler">
+        <Card title="Upcoming payrolls" subtitle="Scheduled and awaiting approval">
           {dashboard.data?.upcomingPayrolls.map((payroll) => <PayrollRow payroll={payroll} key={payroll.id} />)}
           <EmptyState show={!dashboard.data?.upcomingPayrolls.length} text="No scheduled payrolls yet." />
         </Card>

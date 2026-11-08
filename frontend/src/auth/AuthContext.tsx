@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { api, authStore } from '../api'
+import { api, authStore, restoreSession } from '../api'
 import type { Permission, User } from '../types'
 
 type AuthContextValue = {
@@ -7,34 +7,19 @@ type AuthContextValue = {
   booting: boolean
   can: (permission: Permission) => boolean
   setAuthenticatedUser: (user: User) => void
-  logout: () => void
+  logout: () => Promise<void>
+  logoutAll: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => authStore.user())
-  const [booting, setBooting] = useState(Boolean(authStore.token()))
+  const [booting, setBooting] = useState(true)
 
   useEffect(() => {
-    if (!authStore.token()) {
-      setBooting(false)
-      return
-    }
-
-    api.me()
-      .then((currentUser) => {
-        const refreshedUser = {
-          ...currentUser,
-          companyName: currentUser.company?.name,
-        }
-        authStore.saveUser(refreshedUser)
-        setUser(refreshedUser)
-      })
-      .catch(() => {
-        authStore.clear()
-        setUser(null)
-      })
+    restoreSession()
+      .then((currentUser) => currentUser && setUser(currentUser))
       .finally(() => setBooting(false))
   }, [])
 
@@ -48,14 +33,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(authenticatedUser)
   }, [])
 
-  const logout = useCallback(() => {
-    authStore.clear()
+  const logout = useCallback(async () => {
+    try { await api.logout() } catch { authStore.clear() }
+    setUser(null)
+  }, [])
+
+  const logoutAll = useCallback(async () => {
+    try { await api.logoutAll() } catch { authStore.clear() }
     setUser(null)
   }, [])
 
   const value = useMemo(
-    () => ({ user, booting, can, setAuthenticatedUser, logout }),
-    [user, booting, can, setAuthenticatedUser, logout],
+    () => ({ user, booting, can, setAuthenticatedUser, logout, logoutAll }),
+    [user, booting, can, setAuthenticatedUser, logout, logoutAll],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

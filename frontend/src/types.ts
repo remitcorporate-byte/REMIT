@@ -90,6 +90,8 @@ export type Employee = {
   paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
   nextPaymentDate?: string | null
   isActive: boolean
+  transactions?: Transaction[]
+  payrollEmployees?: Array<{ id: string; amount: number; status: Transaction['status']; payroll?: { scheduledDate: string; status: PayrollStatus } | null }>
 }
 
 export type PayrollStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'SCHEDULED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
@@ -197,11 +199,14 @@ export type SupportTicket = {
 
 export type Dashboard = {
   employeeCount: number
+  payrollCount: number
+  pendingApprovalCount: number
   walletBalance: number
   reservedBalance: number
   availableBalance: number
   currency: string
   upcomingPayrolls: Payroll[]
+  pendingApprovalPayrolls: Payroll[]
   recentTransactions: Transaction[]
 }
 

@@ -2,6 +2,7 @@ import type { Transaction } from '../types'
 import { formatDate, formatNaira } from '../api'
 import { EmptyState } from './ui/EmptyState'
 import { StatusPill } from './ui/StatusPill'
+import { labelFor } from '../labels'
 
 export function TransactionsTable({ rows, compact = false }: { rows: Transaction[]; compact?: boolean }) {
   return (
@@ -20,7 +21,7 @@ export function TransactionsTable({ rows, compact = false }: { rows: Transaction
           <tbody>
             {rows.map((row) => (
               <tr key={row.id} className="border-b border-slate-100">
-                <td className="whitespace-nowrap px-3 py-4">{row.type.replaceAll('_', ' ')}</td>
+                <td className="whitespace-nowrap px-3 py-4">{labelFor(row.type)}</td>
                 <td className="whitespace-nowrap px-3 py-4 font-bold">{formatNaira(row.amount)}</td>
                 <td className="whitespace-nowrap px-3 py-4"><StatusPill value={row.status} /></td>
                 {!compact && <td className="whitespace-nowrap px-3 py-4 text-slate-600">{row.description || row.employee?.email || 'No description'}</td>}
@@ -34,7 +35,7 @@ export function TransactionsTable({ rows, compact = false }: { rows: Transaction
         {rows.map((row) => (
           <article key={row.id}>
             <div>
-              <strong>{row.type.replaceAll('_', ' ')}</strong>
+              <strong>{labelFor(row.type)}</strong>
               <time>{formatDate(row.createdAt)}</time>
             </div>
             <div>

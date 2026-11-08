@@ -21,8 +21,9 @@ import type {
 } from './types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'
-const TOKEN_KEY = 'remit_token'
-const USER_KEY = 'remit_user'
+let accessToken: string | null = null
+let cachedUser: User | null = null
+let refreshPromise: Promise<User | null> | null = null
 
 type ApiResponse<T> = {
   success: boolean
@@ -35,7 +36,13 @@ async function download(path: string, filename: string) {
   const token = authStore.token()
   const headers = new Headers()
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  const response = await fetch(`${API_URL}${path}`, { headers })
+  let response = await fetch(`${API_URL}${path}`, { headers, credentials: 'include' })
+  if (response.status === 401 && await refreshSession()) {
+    const retryHeaders = new Headers(headers)
+    const retryToken = authStore.token()
+    if (retryToken) retryHeaders.set('Authorization', `Bearer ${retryToken}`)
+    response = await fetch(`${API_URL}${path}`, { headers: retryHeaders, credentials: 'include' })
+  }
   if (!response.ok) {
     const text = await response.text()
     throw new Error(text || `Download failed (${response.status})`)
@@ -50,25 +57,46 @@ async function download(path: string, filename: string) {
 }
 
 export const authStore = {
-  token: () => localStorage.getItem(TOKEN_KEY),
-  user: (): User | null => {
-    const value = localStorage.getItem(USER_KEY)
-    return value ? JSON.parse(value) : null
-  },
+  token: () => accessToken,
+  user: (): User | null => cachedUser,
   save(token: string, user: User) {
-    localStorage.setItem(TOKEN_KEY, token)
-    localStorage.setItem(USER_KEY, JSON.stringify(user))
+    accessToken = token
+    cachedUser = user
   },
   saveUser(user: User) {
-    localStorage.setItem(USER_KEY, JSON.stringify(user))
+    cachedUser = user
   },
   clear() {
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
+    accessToken = null
+    cachedUser = null
   },
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function refreshSession(): Promise<User | null> {
+  if (typeof window !== 'undefined' && window.localStorage.getItem('remit_has_session') !== '1') return null
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_URL}/auth/refresh`, { method: 'POST', credentials: 'include' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Session expired')
+        const payload = await response.json() as ApiResponse<{ accessToken?: string; token?: string; user: User }>
+        accessToken = payload.data.accessToken || payload.data.token || null
+        cachedUser = payload.data.user
+        window.localStorage.setItem('remit_has_session', '1')
+        return cachedUser
+      })
+      .catch(() => {
+        authStore.clear()
+        window.localStorage.removeItem('remit_has_session')
+        return null
+      })
+      .finally(() => { refreshPromise = null })
+  }
+  return refreshPromise
+}
+
+export const restoreSession = refreshSession
+
+async function request<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
   const headers = new Headers(init.headers)
   if (!headers.has('Content-Type') && init.body) headers.set('Content-Type', 'application/json')
   const token = authStore.token()
@@ -76,7 +104,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   let response: Response
   try {
-    response = await fetch(`${API_URL}${path}`, { ...init, headers })
+    response = await fetch(`${API_URL}${path}`, { ...init, headers, credentials: 'include' })
   } catch {
     throw new Error('Cannot connect to REMIT right now. Check your connection and try again.')
   }
@@ -98,6 +126,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
   }
   if (!response.ok) {
+    const noRefresh = ['/auth/refresh', '/auth/login', '/auth/register', '/auth/password/forgot', '/auth/password/reset'].some((route) => path.startsWith(route))
+    if (response.status === 401 && !retried && !noRefresh) {
+      const restored = await refreshSession()
+      if (restored) return request<T>(path, init, true)
+    }
     throw new Error(payload?.error || payload?.message || `Request failed (${response.status})`)
   }
   return payload
@@ -105,11 +138,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   async login(email: string, password: string) {
-    const res = await request<ApiResponse<{ token: string; user: User }>>('/auth/login', {
+    const res = await request<ApiResponse<{ accessToken?: string; token?: string; user: User }>>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     })
-    authStore.save(res.data.token, res.data.user)
+    authStore.save(res.data.accessToken || res.data.token || '', res.data.user)
+    window.localStorage.setItem('remit_has_session', '1')
     return res.data.user
   },
   async register(input: {
@@ -119,14 +153,22 @@ export const api = {
     lastName: string
     companyName: string
   }) {
-    const res = await request<ApiResponse<{ token: string; user: User }>>('/auth/register', {
+    const res = await request<ApiResponse<{ accessToken?: string; token?: string; user: User }>>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(input),
     })
-    authStore.save(res.data.token, res.data.user)
+    authStore.save(res.data.accessToken || res.data.token || '', res.data.user)
+    window.localStorage.setItem('remit_has_session', '1')
     return res.data.user
   },
   me: () => request<ApiResponse<User>>('/auth/me').then((r) => r.data),
+  logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }).finally(() => { authStore.clear(); window.localStorage.removeItem('remit_has_session') }),
+  logoutAll: () => request<{ success: boolean }>('/auth/logout-all', { method: 'POST' }).finally(() => { authStore.clear(); window.localStorage.removeItem('remit_has_session') }),
+  forgotPassword: (email: string) => request<{ success: boolean; message?: string }>('/auth/password/forgot', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (token: string, password: string) => request<{ success: boolean }>('/auth/password/reset', { method: 'POST', body: JSON.stringify({ token, password }) }),
+  changePassword: (currentPassword: string, newPassword: string) => request<ApiResponse<{ accessToken?: string; token?: string }>>('/auth/password/change', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }).then((r) => { accessToken = r.data.accessToken || r.data.token || accessToken; return r }),
+  sessions: () => request<ApiResponse<Array<{ id: string; deviceName?: string; userAgent?: string; ip?: string; createdAt: string; lastUsedAt: string; current: boolean }>>>('/auth/sessions').then((r) => r.data),
+  revokeSession: (id: string) => request<{ success: boolean }>(`/auth/sessions/${id}`, { method: 'DELETE' }),
   company: () => request<ApiResponse<Company>>('/company').then((r) => r.data),
   updateCompany: (input: Partial<Company>) =>
     request<ApiResponse<Company>>('/company', { method: 'PUT', body: JSON.stringify(input) }).then((r) => r.data),
@@ -176,7 +218,8 @@ export const api = {
     request<ApiResponse<Payroll>>(`/payrolls/${id}`, { method: 'PUT', body: JSON.stringify(input) }).then((r) => r.data),
   payroll: (id: string) => request<ApiResponse<Payroll>>(`/payrolls/${id}`).then((r) => r.data),
   submitPayroll: (id: string) => request<ApiResponse<Payroll>>(`/payrolls/${id}/submit`, { method: 'PUT' }).then((r) => r.data),
-  approvePayroll: (id: string) => request<ApiResponse<Payroll>>(`/payrolls/${id}/approve`, { method: 'PUT' }).then((r) => r.data),
+  approvalCode: (id: string) => request<ApiResponse<{ required: boolean; expiresIn?: number }>>(`/payrolls/${id}/approval-code`, { method: 'POST' }).then((r) => r.data),
+  approvePayroll: (id: string, code?: string) => request<ApiResponse<Payroll>>(`/payrolls/${id}/approve`, { method: 'PUT', body: JSON.stringify(code ? { code } : {}) }).then((r) => r.data),
   cancelPayroll: (id: string) =>
     request<ApiResponse<Payroll>>(`/payrolls/${id}/cancel`, { method: 'PUT' }).then((r) => r.data),
   retryPayroll: (id: string) => request<ApiResponse<{ message: string }>>(`/payrolls/${id}/retry`, { method: 'PUT' }),
