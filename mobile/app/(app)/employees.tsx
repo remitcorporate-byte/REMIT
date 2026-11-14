@@ -47,7 +47,7 @@ export default function EmployeesScreen() {
           autoCapitalize="none"
           onChangeText={setSearch}
           placeholder="Search employees"
-          placeholderTextColor="#98A2B3"
+          placeholderTextColor={colors.placeholder}
           style={styles.searchInput}
           value={search}
         />

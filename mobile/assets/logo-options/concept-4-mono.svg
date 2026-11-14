@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<title>REMIT concept 4 monochrome mark</title>
+<path d="M177 199H381V826H177V199Z" fill="#ffffff"/>
+<path d="M413 199H645C716 199 762 234 777 301H413V199Z" fill="#ffffff"/>
+<path d="M413 345H781C774 407 741 448 680 471H413V345Z" fill="#ffffff"/>
+<path d="M413 515H551L802 826H584L413 616V515Z" fill="#ffffff"/>
+<rect x="781" y="199" width="81" height="102" rx="16" fill="#ffffff"/>
+</svg>

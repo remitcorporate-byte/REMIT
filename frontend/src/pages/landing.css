@@ -17,7 +17,7 @@
 .remit-brand { display: inline-flex; align-items: center; gap: .72rem; color: var(--aubergine); }
 .remit-brand strong { font-size: 1.55rem; font-weight: 850; letter-spacing: .06em; }
 .remit-mark { display: grid; width: 1.65rem; grid-template-columns: repeat(2, 1fr); gap: .2rem; }
-.remit-mark i { aspect-ratio: 1; background: var(--aubergine); }
+.remit-mark i { aspect-ratio: 1; border-radius: 12%; background: var(--aubergine); }
 .remit-mark i:nth-child(2) { background: var(--orange); }
 
 .landing-nav {

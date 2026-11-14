@@ -122,11 +122,11 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  balanceCard: { backgroundColor: colors.ink, borderRadius: 24, gap: 10, padding: 24 },
-  balanceLabel: { color: '#AEB9D1', fontSize: 13, fontWeight: '700' },
+  balanceCard: { backgroundColor: colors.aubergine, borderRadius: 14, borderRightColor: colors.accent, borderRightWidth: 6, gap: 10, padding: 24, overflow: 'hidden' },
+  balanceLabel: { color: colors.onDarkMuted, fontSize: 13, fontWeight: '700' },
   balance: { color: colors.surface, fontSize: 36, fontWeight: '900', letterSpacing: -1.2 },
   balanceMeta: { flexDirection: 'row', gap: 16, marginTop: 8 },
-  balanceMetaText: { color: '#C9D2E6', fontSize: 12, fontWeight: '600' },
+  balanceMetaText: { color: colors.onDarkFaint, fontSize: 12, fontWeight: '600' },
   stats: { flexDirection: 'row', gap: 12 },
   stat: { flex: 1, gap: 5 },
   statValue: { color: colors.ink, fontSize: 26, fontWeight: '900' },

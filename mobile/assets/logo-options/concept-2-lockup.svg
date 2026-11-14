@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2430" height="1024" viewBox="0 0 2430 1024">
+<title>REMIT concept 2 horizontal lockup</title>
+<g transform="translate(45 118) scale(.76)"><path fill="#2b132b" fill-rule="evenodd" d="M211 191H551C649 191 708 247 708 346C708 425 670 472 601 490L772 826H571L424 535H385V826H211V191ZM385 338V406H523C545 406 558 393 558 371C558 350 545 338 523 338H385Z"/>
+<rect x="713" y="191" width="114" height="114" rx="20" fill="#ff5a27"/></g><g transform="translate(830 322) scale(2.74)" fill="#2b132b"><path transform="translate(0 0)" d="M0 0H54C87 0 105 18 105 49C105 72 94 88 75 94L110 140H71L43 98H32V140H0V0ZM32 29V69H53C66 69 73 62 73 49C73 36 66 29 53 29H32Z" fill-rule="evenodd"/><path transform="translate(118 0)" d="M0 0H97V30H33V55H88V84H33V110H97V140H0V0Z" fill-rule="evenodd"/><path transform="translate(229 0)" d="M0 140V0H34L66 66L98 0H132V140H100V56L78 103H54L32 56V140H0Z" fill-rule="evenodd"/><path transform="translate(375 0)" d="M0 0H33V140H0V0Z" fill-rule="evenodd"/><path transform="translate(422 0)" d="M0 0H106V31H69V140H37V31H0V0Z" fill-rule="evenodd"/></g>
+</svg>

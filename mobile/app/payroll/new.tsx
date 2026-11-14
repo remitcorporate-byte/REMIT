@@ -91,8 +91,8 @@ export default function NewPayrollScreen() {
 
 const styles = StyleSheet.create({
   intro: { color: colors.muted, fontSize: 15, lineHeight: 22 },
-  summary: { backgroundColor: colors.ink, gap: 6 },
-  summaryLabel: { color: '#AEB9D1', fontSize: 12, fontWeight: '700' },
+  summary: { backgroundColor: colors.aubergine, gap: 6 },
+  summaryLabel: { color: colors.onDarkMuted, fontSize: 12, fontWeight: '700' },
   summaryAmount: { color: colors.surface, fontSize: 30, fontWeight: '900' },
   summaryMeta: { color: colors.accent, fontSize: 12, fontWeight: '800' },
   employeeHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },

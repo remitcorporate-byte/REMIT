@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  chipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  chipActive: { backgroundColor: colors.aubergine, borderColor: colors.aubergine },
   chipText: { color: colors.ink, fontSize: 13, fontWeight: '700' },
   chipTextActive: { color: colors.surface },
   count: { color: colors.muted, fontSize: 12, fontWeight: '600' },

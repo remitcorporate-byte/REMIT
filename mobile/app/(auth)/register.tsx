@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-na
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/src/auth/auth-provider';
+import { BrandLockup } from '@/src/components/brand-mark';
 import { Button, ErrorMessage, Field, Screen } from '@/src/components/ui';
 import { colors } from '@/src/constants/theme';
 
@@ -41,6 +42,7 @@ export default function RegisterScreen() {
         <Screen>
           <View style={styles.header}>
             <Text style={styles.eyebrow}>Start paying smarter</Text>
+            <BrandLockup size={24} />
             <Text style={styles.title}>Create your REMIT account.</Text>
             <Text style={styles.subtitle}>Set up your company workspace. You will become the account owner.</Text>
           </View>
@@ -76,10 +78,10 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { backgroundColor: colors.background, flex: 1 },
+  safe: { backgroundColor: colors.ivory, flex: 1 },
   header: { gap: 8, marginBottom: 12, marginTop: 16 },
   eyebrow: { color: colors.primary, fontSize: 12, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
-  title: { color: colors.ink, fontSize: 34, fontWeight: '900', letterSpacing: -1.2 },
+  title: { color: colors.aubergine, fontSize: 34, fontWeight: '800', letterSpacing: -1.2 },
   subtitle: { color: colors.muted, fontSize: 15, lineHeight: 22 },
   row: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },

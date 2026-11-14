@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2430" height="1024" viewBox="0 0 2430 1024">
+<title>REMIT concept 4 horizontal lockup</title>
+<g transform="translate(45 118) scale(.76)"><path d="M177 199H381V826H177V199Z" fill="#2b132b"/>
+<path d="M413 199H645C716 199 762 234 777 301H413V199Z" fill="#2b132b"/>
+<path d="M413 345H781C774 407 741 448 680 471H413V345Z" fill="#2b132b"/>
+<path d="M413 515H551L802 826H584L413 616V515Z" fill="#2b132b"/>
+<rect x="781" y="199" width="81" height="102" rx="16" fill="#ff5a27"/></g><g transform="translate(830 322) scale(2.74)" fill="#2b132b"><path transform="translate(0 0)" d="M0 0H54C87 0 105 18 105 49C105 72 94 88 75 94L110 140H71L43 98H32V140H0V0ZM32 29V69H53C66 69 73 62 73 49C73 36 66 29 53 29H32Z" fill-rule="evenodd"/><path transform="translate(118 0)" d="M0 0H97V30H33V55H88V84H33V110H97V140H0V0Z" fill-rule="evenodd"/><path transform="translate(229 0)" d="M0 140V0H34L66 66L98 0H132V140H100V56L78 103H54L32 56V140H0Z" fill-rule="evenodd"/><path transform="translate(375 0)" d="M0 0H33V140H0V0Z" fill-rule="evenodd"/><path transform="translate(422 0)" d="M0 0H106V31H69V140H37V31H0V0Z" fill-rule="evenodd"/></g>
+</svg>

@@ -121,7 +121,7 @@ function StatusRow({ label, online }: { label: string; online?: boolean }) {
 
 const styles = StyleSheet.create({
   profile: { alignItems: 'center', flexDirection: 'row', gap: 14 },
-  avatar: { alignItems: 'center', backgroundColor: colors.ink, borderRadius: 18, height: 58, justifyContent: 'center', width: 58 },
+  avatar: { alignItems: 'center', backgroundColor: colors.aubergine, borderRadius: 18, height: 58, justifyContent: 'center', width: 58 },
   avatarText: { color: colors.accent, fontSize: 18, fontWeight: '900' },
   profileCopy: { flex: 1, gap: 5 },
   name: { color: colors.ink, fontSize: 18, fontWeight: '900' },

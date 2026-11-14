@@ -109,11 +109,11 @@ export default function WalletScreen() {
 }
 
 const styles = StyleSheet.create({
-  balanceCard: { backgroundColor: colors.ink, borderRadius: 24, gap: 10, padding: 24 },
-  balanceLabel: { color: '#AEB9D1', fontSize: 13, fontWeight: '700' },
+  balanceCard: { backgroundColor: colors.aubergine, borderRadius: 14, borderRightColor: colors.accent, borderRightWidth: 6, gap: 10, padding: 24, overflow: 'hidden' },
+  balanceLabel: { color: colors.onDarkMuted, fontSize: 13, fontWeight: '700' },
   balance: { color: colors.surface, fontSize: 36, fontWeight: '900', letterSpacing: -1.2 },
   balanceRow: { flexDirection: 'row', gap: 32, marginTop: 10 },
-  metaLabel: { color: '#8795B3', fontSize: 11, marginBottom: 3 },
+  metaLabel: { color: colors.onDarkFaint, fontSize: 11, marginBottom: 3 },
   metaValue: { color: colors.surface, fontSize: 13, fontWeight: '800' },
   fund: { gap: 14 },
   sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: '900' },

@@ -46,7 +46,7 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
-        placeholderTextColor="#98A2B3"
+        placeholderTextColor={colors.placeholder}
         style={[styles.input, props.multiline && styles.multiline]}
         {...props}
       />
@@ -78,7 +78,7 @@ export function Button({
         (pressed || disabled || loading) && styles.buttonPressed,
       ]}>
       {loading ? (
-        <ActivityIndicator color={variant === 'secondary' ? colors.primary : colors.surface} />
+        <ActivityIndicator color={variant === 'secondary' ? colors.aubergine : colors.surface} />
       ) : (
         <Text style={[styles.buttonText, variant === 'secondary' && styles.buttonSecondaryText]}>{title}</Text>
       )}
@@ -109,7 +109,15 @@ export function Badge({ label, tone = 'neutral' }: { label: string; tone?: 'neut
         tone === 'warning' && styles.badgeWarning,
         tone === 'danger' && styles.badgeDanger,
       ]}>
-      <Text style={styles.badgeText}>{labelFor(label)}</Text>
+      <Text
+        style={[
+          styles.badgeText,
+          tone === 'success' && styles.badgeTextSuccess,
+          tone === 'warning' && styles.badgeTextWarning,
+          tone === 'danger' && styles.badgeTextDanger,
+        ]}>
+        {labelFor(label)}
+      </Text>
     </View>
   );
 }
@@ -125,20 +133,20 @@ const styles = StyleSheet.create({
     ...shadow,
   },
   heading: { gap: 7, marginBottom: 2 },
-  eyebrow: { color: colors.primary, fontSize: 12, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
-  title: { color: colors.ink, fontSize: 28, fontWeight: '900', letterSpacing: -0.8 },
+  eyebrow: { color: colors.muted, fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
+  title: { color: colors.aubergine, fontSize: 28, fontWeight: '800', letterSpacing: -0.9 },
   description: { color: colors.muted, fontSize: 15, lineHeight: 22 },
   field: { gap: 7 },
-  label: { color: colors.ink, fontSize: 13, fontWeight: '700' },
+  label: { color: colors.label, fontSize: 14, fontWeight: '700' },
   input: {
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
+    backgroundColor: colors.surfaceWarm,
+    borderColor: colors.lineStrong,
     borderRadius: radius.small,
     borderWidth: 1,
     color: colors.ink,
     fontSize: 16,
-    minHeight: 52,
-    paddingHorizontal: 15,
+    minHeight: 48,
+    paddingHorizontal: 14,
   },
   multiline: { minHeight: 92, paddingTop: 14, textAlignVertical: 'top' },
   button: {
@@ -146,14 +154,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: radius.small,
     justifyContent: 'center',
-    minHeight: 52,
+    minHeight: 48,
     paddingHorizontal: 18,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  buttonSecondary: { backgroundColor: colors.primarySoft },
+  buttonSecondary: { backgroundColor: colors.surface, borderColor: colors.lineStrong, borderWidth: 1, elevation: 0, shadowOpacity: 0 },
   buttonDanger: { backgroundColor: colors.danger },
   buttonPressed: { opacity: 0.65 },
   buttonText: { color: colors.surface, fontSize: 15, fontWeight: '800' },
-  buttonSecondaryText: { color: colors.primaryDark },
+  buttonSecondaryText: { color: '#40363E', fontWeight: '700' },
   error: {
     backgroundColor: colors.dangerSoft,
     borderRadius: radius.small,
@@ -163,10 +176,13 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   empty: { alignItems: 'center', gap: 7, paddingVertical: 28 },
-  emptyTitle: { color: colors.ink, fontSize: 17, fontWeight: '800' },
-  badge: { alignSelf: 'flex-start', backgroundColor: colors.primarySoft, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5 },
-  badgeSuccess: { backgroundColor: colors.successSoft },
-  badgeWarning: { backgroundColor: colors.warningSoft },
+  emptyTitle: { color: colors.aubergine, fontSize: 17, fontWeight: '800' },
+  badge: { alignSelf: 'flex-start', backgroundColor: colors.lineSoft, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
+  badgeSuccess: { backgroundColor: colors.successSoft, borderColor: colors.successLine, borderWidth: 1 },
+  badgeWarning: { backgroundColor: colors.warningSoft, borderColor: colors.warningLine, borderWidth: 1 },
   badgeDanger: { backgroundColor: colors.dangerSoft },
-  badgeText: { color: colors.ink, fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
+  badgeText: { color: '#5D545B', fontSize: 11, fontWeight: '800', textTransform: 'capitalize' },
+  badgeTextSuccess: { color: colors.success },
+  badgeTextWarning: { color: colors.warning },
+  badgeTextDanger: { color: colors.danger },
 });

@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-na
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/src/auth/auth-provider';
+import { BrandLockup } from '@/src/components/brand-mark';
 import { Button, ErrorMessage, Field } from '@/src/components/ui';
 import { colors } from '@/src/constants/theme';
 
@@ -30,10 +31,7 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
         <View style={styles.brand}>
-          <View style={styles.logo}>
-            <Text style={styles.logoText}>R</Text>
-          </View>
-          <Text style={styles.wordmark}>REMIT</Text>
+          <BrandLockup size={28} />
         </View>
 
         <View style={styles.copy}>
@@ -75,15 +73,12 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { backgroundColor: colors.background, flex: 1 },
+  safe: { backgroundColor: colors.ivory, flex: 1 },
   container: { flex: 1, justifyContent: 'center', padding: 24 },
   brand: { alignItems: 'center', flexDirection: 'row', gap: 10, marginBottom: 42 },
-  logo: { alignItems: 'center', backgroundColor: colors.ink, borderRadius: 12, height: 42, justifyContent: 'center', width: 42 },
-  logoText: { color: colors.accent, fontSize: 22, fontWeight: '900' },
-  wordmark: { color: colors.ink, fontSize: 21, fontWeight: '900', letterSpacing: 1.5 },
   copy: { gap: 8, marginBottom: 28 },
   eyebrow: { color: colors.primary, fontSize: 12, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
-  title: { color: colors.ink, fontSize: 38, fontWeight: '900', letterSpacing: -1.4 },
+  title: { color: colors.aubergine, fontSize: 38, fontWeight: '800', letterSpacing: -1.4 },
   subtitle: { color: colors.muted, fontSize: 16, lineHeight: 24 },
   form: { gap: 16 },
   footer: { color: colors.muted, fontSize: 14, marginTop: 24, textAlign: 'center' },

@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
   },
-  rowUnread: { borderColor: colors.primarySoft, backgroundColor: '#FAFBFF' },
+  rowUnread: { borderColor: colors.primarySoft, backgroundColor: colors.primarySoft },
   rowPressed: { opacity: 0.7 },
   icon: { alignItems: 'center', borderRadius: 12, height: 38, justifyContent: 'center', width: 38 },
   copy: { flex: 1, gap: 4 },

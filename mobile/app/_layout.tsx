@@ -29,8 +29,8 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: colors.background },
             headerShadowVisible: false,
             headerStyle: { backgroundColor: colors.background },
-            headerTintColor: colors.ink,
-            headerTitleStyle: { fontWeight: '800' },
+            headerTintColor: colors.aubergine,
+            headerTitleStyle: { color: colors.aubergine, fontWeight: '800' },
           }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
