@@ -37,9 +37,9 @@ services:
       - key: APP_URL
         sync: false
       - key: COOKIE_CROSS_SITE
-        value: true
+        value: "true"
       - key: REQUIRE_APPROVAL_OTP
-        value: true
+        value: "true"
 
   - type: web
     name: remit-web
