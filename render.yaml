@@ -17,7 +17,7 @@ services:
       - key: NODE_VERSION
         value: 22
       - key: PAYROLL_QUEUE_MODE
-        value: redis
+        value: in-process
       - key: FRONTEND_URL
         sync: false
       - key: DATABASE_URL
@@ -30,38 +30,18 @@ services:
         sync: false
       - key: PAYSTACK_PUBLIC_KEY
         sync: false
-      - key: REDIS_URL
+      - key: FIELD_ENCRYPTION_KEY
         sync: false
-
-  - type: worker
-    name: remit-payroll-worker
-    runtime: node
-    plan: starter
-    region: frankfurt
-    rootDir: backend
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm prisma generate && pnpm build
-    startCommand: pnpm worker:payroll
-    maxShutdownDelaySeconds: 300
-    autoDeployTrigger: commit
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: NODE_VERSION
-        value: 22
-      - key: PAYROLL_QUEUE_MODE
-        value: redis
-      - key: DATABASE_URL
+      - key: RESEND_API_KEY
         sync: false
-      - key: DIRECT_URL
+      - key: EMAIL_FROM
         sync: false
-      - key: JWT_SECRET
-        generateValue: true
-      - key: PAYSTACK_SECRET_KEY
+      - key: APP_URL
         sync: false
-      - key: PAYSTACK_PUBLIC_KEY
-        sync: false
-      - key: REDIS_URL
-        sync: false
+      - key: COOKIE_CROSS_SITE
+        value: true
+      - key: REQUIRE_APPROVAL_OTP
+        value: true
 
   - type: web
     name: remit-web
