@@ -2,14 +2,12 @@ services:
   - type: web
     name: remit-api
     runtime: node
-    plan: starter
+    plan: free
     region: frankfurt
     rootDir: backend
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm prisma generate && pnpm build
-    preDeployCommand: pnpm exec prisma migrate deploy
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm prisma generate && pnpm build && pnpm exec prisma migrate deploy
     startCommand: pnpm start
     healthCheckPath: /api/v1/ready
-    maxShutdownDelaySeconds: 60
     autoDeployTrigger: commit
     envVars:
       - key: NODE_ENV
