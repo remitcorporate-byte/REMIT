@@ -11,6 +11,13 @@ import { generateReference, getPaginationParams, paginatedResponse } from '../ut
 import config from '../config';
 import { auditService } from '../services/audit.service';
 import { notificationService } from '../services/notification.service';
+import { depositCallbackUrl, paystackReturnLocation } from '../utils/paystackReturn';
+
+export const paystackReturn = (req: Request, res: Response) => {
+  const location = paystackReturnLocation(req.query.reference);
+  if (!location) return res.status(400).json({ success: false, error: 'Invalid payment reference' });
+  return res.redirect(302, location);
+};
 
 
 // @desc    Get wallet balance
@@ -91,9 +98,7 @@ export const initializeDeposit = async (req: Request, res: Response, next: NextF
       email: req.user.email,
       amount,
       reference,
-      callbackUrl: config.frontendUrls[0]
-        ? `${config.frontendUrls[0]}/?view=wallet&depositReference=${reference}`
-        : undefined,
+      callbackUrl: depositCallbackUrl(req, reference, config.frontendUrls[0] || '', config.apiPublicUrl),
       metadata: {
         companyId: req.user.companyId,
         walletId: wallet.id,

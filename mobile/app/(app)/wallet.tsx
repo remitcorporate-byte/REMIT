@@ -1,37 +1,81 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
-import { Linking, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useFocusEffect, useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import { AppState, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { confirmAction } from '@/src/lib/confirm';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api, formatNaira } from '@/src/api/client';
 import { useAuth } from '@/src/auth/auth-provider';
 import { TransactionRow } from '@/src/components/transaction-row';
 import { Button, Card, EmptyState, ErrorMessage, Field, PageHeading, Screen } from '@/src/components/ui';
 import { colors } from '@/src/constants/theme';
+import { type DepositOutcome, pollDeposit } from '@/src/lib/deposit-verification';
 
 export default function WalletScreen() {
   const { can } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
+  const [paymentOutcome, setPaymentOutcome] = useState<DepositOutcome | null>(null);
+  const pendingReference = useRef<string | null>(null);
+  const verification = useRef<Promise<void> | null>(null);
   const wallet = useQuery({ queryKey: ['wallet'], queryFn: api.wallet, enabled: can('wallet.read') });
   const transactions = useQuery({
     queryKey: ['transactions'],
     queryFn: api.transactions,
     enabled: can('transaction.read'),
   });
+  const refresh = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['wallet'] }),
+      queryClient.invalidateQueries({ queryKey: ['transactions'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+      queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    ]);
+  }, [queryClient]);
+  const verifyPending = useCallback(() => {
+    if (!pendingReference.current || verification.current) return verification.current;
+    const reference = pendingReference.current;
+    const task = (async () => {
+      try {
+        const outcome = await pollDeposit(reference, api.verifyDeposit);
+        setPaymentOutcome(outcome);
+        setMessage(outcome === 'confirmed' ? 'Payment confirmed, wallet updated' : outcome === 'failed' ? 'Payment was not completed' : 'Payment is still processing, we will update your wallet shortly');
+        if (outcome !== 'processing' && pendingReference.current === reference) pendingReference.current = null;
+      } finally {
+        try { await refresh(); } finally { verification.current = null; }
+      }
+    })();
+    verification.current = task;
+    return task;
+  }, [refresh]);
+  useFocusEffect(useCallback(() => {
+    void refresh();
+    void verifyPending();
+  }, [refresh, verifyPending]));
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void refresh();
+        void verifyPending();
+      }
+    });
+    return () => subscription.remove();
+  }, [refresh, verifyPending]);
   const deposit = useMutation({
     mutationFn: api.deposit,
     onSuccess: async ({ authorizationUrl, reference }) => {
       setAmount('');
-      if (authorizationUrl.includes('depositReference=')) {
-        const result = await api.verifyDeposit(reference);
-        await Promise.all([wallet.refetch(), transactions.refetch()]);
-        setMessage(`Deposit verified. New balance: ${formatNaira(result.newBalance)}`);
-        return;
+      setMessage('');
+      setPaymentOutcome(null);
+      pendingReference.current = reference;
+      try {
+        await WebBrowser.openAuthSessionAsync(authorizationUrl, 'remit://wallet');
+      } finally {
+        await verifyPending();
       }
-      await Linking.openURL(authorizationUrl);
     },
   });
 
@@ -67,7 +111,7 @@ export default function WalletScreen() {
       {can('wallet.fund') ? (
         <Card style={styles.fund}>
           <Text style={styles.sectionTitle}>Fund wallet</Text>
-          <Text style={styles.copy}>Enter an amount in naira. Secure payment will open in your browser.</Text>
+          <Text style={styles.copy}>Enter an amount in naira. Secure payment will open in the app.</Text>
           <Field
             keyboardType="numeric"
             label="Amount (NGN)"
@@ -76,7 +120,7 @@ export default function WalletScreen() {
             value={amount}
           />
           <ErrorMessage message={deposit.error instanceof Error ? deposit.error.message : null} />
-          {message ? <Text style={styles.success}>{message}</Text> : null}
+          {message ? <Text style={[styles.paymentMessage, paymentOutcome === 'confirmed' ? styles.confirmed : paymentOutcome === 'failed' ? styles.failed : styles.processing]}>{message}</Text> : null}
           <Button
             disabled={!Number.isFinite(amountInNaira) || amountInNaira <= 0}
             loading={deposit.isPending}
@@ -93,7 +137,7 @@ export default function WalletScreen() {
         <View style={styles.transactions}>
           <View style={styles.sectionRow}>
             <Text style={styles.sectionTitle}>Recent activity</Text>
-            <Pressable accessibilityRole="link" hitSlop={10} onPress={() => router.push('/transactions')}>
+            <Pressable accessibilityRole="link" onPress={() => router.push('/transactions')} style={styles.linkAction}>
               <Text style={styles.link}>See all</Text>
             </Pressable>
           </View>
@@ -119,7 +163,11 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: '900' },
   copy: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   transactions: { gap: 10 },
-  sectionRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  sectionRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 },
+  linkAction: { justifyContent: 'center', minHeight: 44 },
   link: { color: colors.primary, fontSize: 14, fontWeight: '800' },
-  success: { color: colors.success, fontSize: 13, lineHeight: 20 },
+  paymentMessage: { fontSize: 13, lineHeight: 20 },
+  confirmed: { color: colors.success },
+  failed: { color: colors.danger },
+  processing: { color: colors.warning },
 });

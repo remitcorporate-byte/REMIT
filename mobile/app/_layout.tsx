@@ -23,7 +23,7 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <StatusBar style="dark" />
+        <StatusBar backgroundColor={colors.background} style="dark" />
         <Stack
           screenOptions={{
             contentStyle: { backgroundColor: colors.background },

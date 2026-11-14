@@ -1,5 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Redirect, Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/src/auth/auth-provider';
 import { LoadingScreen } from '@/src/components/loading-screen';
@@ -8,6 +9,7 @@ import { colors } from '@/src/constants/theme';
 
 export default function AppLayout() {
   const { user, isLoading, can } = useAuth();
+  const insets = useSafeAreaInsets();
 
   if (isLoading) return <LoadingScreen />;
   if (!user) return <Redirect href="/(auth)/login" />;
@@ -22,7 +24,7 @@ export default function AppLayout() {
         headerRight: () => (can('notification.read') ? <NotificationBell /> : null),
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line, height: 64, paddingBottom: 8, paddingTop: 6 },
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line, height: 64 + insets.bottom, paddingBottom: 8 + insets.bottom, paddingTop: 6 },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
       }}>
       <Tabs.Screen

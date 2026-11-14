@@ -85,7 +85,7 @@ export default function DashboardScreen() {
       {can('payroll.approve') && pendingApproval ? <Pressable onPress={() => router.push(`/payroll/${pendingApproval.id}`)} style={({ pressed }) => [styles.approval, pressed && styles.pressed]}><Text style={styles.approvalTitle}>Needs your approval</Text><Text style={styles.approvalAmount}>{formatNaira(pendingApproval.totalAmount)}</Text><Text style={styles.approvalMeta}>{pendingApproval.employeeCount} employees · {formatDate(pendingApproval.scheduledDate)}</Text></Pressable> : null}
 
       <View style={styles.section}>
-        <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Upcoming payrolls</Text><Pressable accessibilityRole="button" onPress={() => router.push('/(app)/payroll')}><Text style={styles.seeAll}>See all</Text></Pressable></View>
+        <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Upcoming payrolls</Text><Pressable accessibilityRole="button" onPress={() => router.push('/(app)/payroll')} style={styles.seeAllAction}><Text style={styles.seeAll}>See all</Text></Pressable></View>
         {dashboard.isLoading ? null : !data?.upcomingPayrolls.length ? (
           <EmptyState title="Nothing scheduled" description="Create a payroll draft to get your next payment run moving." />
         ) : (
@@ -102,7 +102,7 @@ export default function DashboardScreen() {
       </View>
 
       <View style={styles.section}>
-        <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Recent activity</Text><Pressable accessibilityRole="button" onPress={() => router.push('/transactions')}><Text style={styles.seeAll}>See all</Text></Pressable></View>
+        <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Recent activity</Text><Pressable accessibilityRole="button" onPress={() => router.push('/transactions')} style={styles.seeAllAction}><Text style={styles.seeAll}>See all</Text></Pressable></View>
         {dashboard.isLoading ? null : !data?.recentTransactions.length ? (
           <EmptyState title="No transactions yet" description="Wallet and payroll activity will appear here." />
         ) : (
@@ -141,8 +141,9 @@ const styles = StyleSheet.create({
   amount: { color: colors.ink, fontSize: 14, fontWeight: '900' },
   loading: { alignItems: 'center', flexDirection: 'row', gap: 10 },
   progress: { gap: 8 },
-  sectionHeading: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  sectionHeading: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 },
   seeAll: { color: colors.primary, fontSize: 13, fontWeight: '800' },
+  seeAllAction: { justifyContent: 'center', minHeight: 44 },
   pressed: { opacity: 0.7 },
   approval: { backgroundColor: colors.warningSoft, borderColor: colors.warning, borderRadius: 18, borderWidth: 1, gap: 5, padding: 18 },
   approvalTitle: { color: colors.ink, fontSize: 15, fontWeight: '900' },

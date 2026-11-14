@@ -8,6 +8,7 @@ import { useAuth } from '@/src/auth/auth-provider';
 import { EmptyState, ErrorMessage } from '@/src/components/ui';
 import { colors } from '@/src/constants/theme';
 import type { AppNotification, NotificationType } from '@/src/types/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TYPE_META: Record<NotificationType, { icon: keyof typeof MaterialIcons.glyphMap; color: string; soft: string }> = {
   PAYROLL_COMPLETED: { icon: 'task-alt', color: colors.success, soft: colors.successSoft },
@@ -21,6 +22,7 @@ const TYPE_META: Record<NotificationType, { icon: keyof typeof MaterialIcons.gly
 
 export default function NotificationsScreen() {
   const { can } = useAuth();
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
   const query = useInfiniteQuery({
@@ -37,7 +39,7 @@ export default function NotificationsScreen() {
 
   if (!can('notification.read')) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingBottom: 20 + insets.bottom }]}>
         <EmptyState description="Ask your administrator for notification access." title="No notification access" />
       </View>
     );
@@ -64,7 +66,7 @@ export default function NotificationsScreen() {
         }}
       />
       <FlatList
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, { paddingBottom: 20 + insets.bottom }]}
         data={items}
         keyExtractor={(item) => item.id}
         ListEmptyComponent={

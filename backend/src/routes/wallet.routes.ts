@@ -4,11 +4,13 @@ import {
   initializeDeposit,
   verifyDeposit,
   getTransactions,
+  paystackReturn,
 } from '../controllers/wallet.controller';
 import { protect, authorizePermission } from '../middleware/auth';
 
 const router = Router();
 
+router.get('/paystack-return', paystackReturn);
 router.use(protect);
 
 router.get('/', authorizePermission('wallet.read'), getWallet);

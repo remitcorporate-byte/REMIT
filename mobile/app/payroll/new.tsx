@@ -53,7 +53,7 @@ export default function NewPayrollScreen() {
       <Field label="Note (optional)" multiline onChangeText={setNote} placeholder="August monthly payroll" value={note} />
       <View style={styles.employeeHeader}>
         <Text style={styles.sectionTitle}>Employees</Text>
-        <Pressable onPress={() => setSelected(selected.length === activeEmployees.length ? [] : activeEmployees.map((employee) => employee.id))}>
+        <Pressable accessibilityRole="button" onPress={() => setSelected(selected.length === activeEmployees.length ? [] : activeEmployees.map((employee) => employee.id))} style={styles.selectAction}>
           <Text style={styles.selectAll}>{selected.length === activeEmployees.length ? 'Clear all' : 'Select all'}</Text>
         </Pressable>
       </View>
@@ -95,7 +95,8 @@ const styles = StyleSheet.create({
   summaryLabel: { color: colors.onDarkMuted, fontSize: 12, fontWeight: '700' },
   summaryAmount: { color: colors.surface, fontSize: 30, fontWeight: '900' },
   summaryMeta: { color: colors.accent, fontSize: 12, fontWeight: '800' },
-  employeeHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  employeeHeader: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 },
+  selectAction: { minHeight: 44, justifyContent: 'center' },
   sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: '900' },
   selectAll: { color: colors.primary, fontSize: 13, fontWeight: '800' },
   employee: { alignItems: 'center', flexDirection: 'row', gap: 12, padding: 14 },

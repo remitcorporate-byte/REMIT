@@ -13,12 +13,14 @@ import {
 } from 'react-native';
 
 import { colors, radius, shadow } from '@/src/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { labelFor } from '@/src/lib/labels';
 
 export function Screen({ children, refreshControl }: PropsWithChildren<{ refreshControl?: ReactNode }>) {
+  const insets = useSafeAreaInsets();
   return (
     <ScrollView
-      contentContainerStyle={styles.screen}
+      contentContainerStyle={[styles.screen, { paddingBottom: 20 + insets.bottom }]}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
       refreshControl={refreshControl as never}>

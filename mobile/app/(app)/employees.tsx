@@ -78,7 +78,7 @@ export default function EmployeesScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  header: { alignItems: 'flex-start', gap: 12 },
   add: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: 14, flexDirection: 'row', gap: 6, minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
   addText: { color: colors.surface, fontSize: 13, fontWeight: '800' },
   search: {

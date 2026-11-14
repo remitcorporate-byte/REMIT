@@ -8,6 +8,7 @@ import { TransactionRow } from '@/src/components/transaction-row';
 import { EmptyState, ErrorMessage } from '@/src/components/ui';
 import { colors } from '@/src/constants/theme';
 import type { Transaction } from '@/src/types/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Filter = { key: string; label: string; type?: Transaction['type']; status?: Transaction['status'] };
 
@@ -22,6 +23,7 @@ const FILTERS: Filter[] = [
 
 export default function TransactionsScreen() {
   const { can } = useAuth();
+  const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<Filter>(FILTERS[0]);
 
   const query = useInfiniteQuery({
@@ -34,7 +36,7 @@ export default function TransactionsScreen() {
 
   if (!can('transaction.read')) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingBottom: 20 + insets.bottom }]}>
         <EmptyState description="Ask your administrator for transaction access." title="No transaction access" />
       </View>
     );
@@ -45,7 +47,7 @@ export default function TransactionsScreen() {
 
   return (
     <FlatList
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[styles.container, { paddingBottom: 20 + insets.bottom }]}
       data={items}
       keyExtractor={(item) => item.id}
       ListEmptyComponent={
